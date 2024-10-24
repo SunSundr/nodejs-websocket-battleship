@@ -1,0 +1,104 @@
+{
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "prettier", "import"],
+  "extends": [
+    "airbnb-base",
+    "airbnb-typescript/base",
+    "prettier"
+  ],
+  "parserOptions": {
+    "project": "./tsconfig.json",
+    "warnOnUnsupportedTypeScriptVersion": false
+  },
+  "ignorePatterns": ["webpack*.js"],
+  "rules": {
+    "@typescript-eslint/explicit-module-boundary-types": "error",
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/lines-between-class-members": "off",
+    "@typescript-eslint/no-shadow": "error",
+    "@typescript-eslint/no-loop-func": "off",
+    "@typescript-eslint/prefer-readonly": "error",
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "class-methods-use-this": "off",
+    "comma-dangle": "off",
+    "import/extensions": ["error", "ignorePackages", { "ts": "never" }],
+    "import/prefer-default-export": "off",
+    "lines-between-class-members": ["error", "always", { "exceptAfterSingleLine": true }],
+    "max-len": "off",
+    "no-bitwise": "off",
+    "no-console": 0,
+    "no-debugger": "off",
+    "no-multi-assign": ["error", { "ignoreNonDeclaration": true }],
+    "no-param-reassign": "off",
+    "no-plusplus": "off",
+    "no-restricted-syntax": "off",
+    "no-shadow": "off",
+    "no-unused-expressions": ["error", { "allowTernary": true }],
+    "no-unused-vars": "off",
+    "no-use-before-define": "off",
+    "operator-linebreak": ["error", "after", { "overrides": { "?": "before", ":": "before" } }],
+    "padding-line-between-statements": [
+      "error",
+      {
+        "blankLine": "always",
+        "prev": [
+          "block",
+          "block-like",
+          "cjs-export",
+          "class",
+          "export",
+          "import"
+        ],
+        "next": "*"
+      },
+      {
+        "blankLine": "any",
+        "prev": ["export", "import"],
+        "next": ["export", "import"]
+      },
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": "return"
+      },
+      {
+        "blankLine": "any",
+        "prev": "block-like",
+        "next": "break"
+      }
+    ],
+    "@typescript-eslint/naming-convention": [
+      "error",
+      {
+        "selector": "variable",
+        "format": ["camelCase", "PascalCase", "UPPER_CASE"],
+        "filter": {
+          "regex": "^__dirname$",
+          "match": false
+        }
+      }
+    ],
+    "no-underscore-dangle": ["error", { "allow": ["__dirname"] }],
+    "prettier/prettier": [
+      "error",
+      {
+        "trailingComma": "es5",
+        "tabWidth": 2,
+        "semi": true,
+        "singleQuote": true,
+        "printWidth": 100
+      },
+      {
+        "usePrettierrc": false
+      }
+    ]
+  },
+  "settings": {
+    "import/resolver": {
+      "webpack": {
+        "config": "./webpack.config.cjs"
+      }
+    }
+  },
+  "noInlineConfig": true
+}

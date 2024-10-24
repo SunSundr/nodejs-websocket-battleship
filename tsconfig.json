@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2016",
+    "rootDir": "./src",
+    "outDir": "build",
+    "sourceMap": true,
+    "esModuleInterop": true, 
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+     /* Type Checking */
+    "strict": true ,
+    "noImplicitAny": true ,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "skipLibCheck": true 
+  },
+  "files": ["src/index.ts"],
+  "include": ["src/**/*.{ts,js}", "index.js"],
+  "exclude": ["node_modules"]
+}
