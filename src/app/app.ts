@@ -1,20 +1,24 @@
-import { Server } from 'node:http';
 import { httpServer } from '../http_server/httpServer';
 import { WsServer } from '../ws_server/wsServer';
 import { UserDb } from '../db/userDb';
 
 export class App {
-  public readonly server: Server;
-  public readonly userDb = new UserDb();
-  public readonly wsServer = new WsServer(this.userDb);
+  readonly server;
+  readonly userDb;
+  readonly wsServer;
 
-  constructor(public port: number) {
+  constructor(
+    private readonly httpPort: number,
+    private readonly wssPort: number
+  ) {
     this.server = httpServer;
+    this.userDb = new UserDb();
+    this.wsServer = new WsServer(this.userDb, this.wssPort);
   }
 
   start(): void {
-    this.server.listen(this.port, () => {
-      console.log(`Start static http server on the ${this.port} port`);
+    this.server.listen(this.httpPort, () => {
+      console.log(`Start static http server on the ${this.httpPort} port`);
     });
   }
 }

@@ -12,6 +12,10 @@ export class Users {
     return Array.from(this.users.values());
   }
 
+  getUser(ws: WebSocket): User | undefined {
+    return this.users.get(ws);
+  }
+
   delete(ws: WebSocket): void {
     this.users.delete(ws);
   }

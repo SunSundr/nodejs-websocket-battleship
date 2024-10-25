@@ -1,3 +1,5 @@
+import { RoomData, RoomIndex, GameData } from '../game/types';
+
 export enum MSG_TYPES {
   registration = 'reg',
   updateWinners = 'update_winners',
@@ -26,17 +28,8 @@ export interface WinnersData {
   wins: number;
 }
 
-export interface RoomData {
-  indexRoom: number | string;
-}
-
-export interface GameData {
-  idGame: number | string;
-  idPlayer: number | string;
-}
-
 export interface WsMessage {
   type: MSG_TYPES;
-  data: RegData | WinnersData[] | string;
-  id: number;
+  data: RegData | WinnersData[] | RoomData[] | RoomIndex | GameData | string;
+  readonly id: number;
 }
