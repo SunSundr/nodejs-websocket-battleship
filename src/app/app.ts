@@ -1,12 +1,12 @@
 import { Server } from 'node:http';
 import { httpServer } from '../http_server/httpServer';
-import { WsServer } from '../ws_server/server';
+import { WsServer } from '../ws_server/wsServer';
 import { UserDb } from '../db/userDb';
 
 export class App {
   public readonly server: Server;
   public readonly userDb = new UserDb();
-  public readonly wsServer = new WsServer();
+  public readonly wsServer = new WsServer(this.userDb);
 
   constructor(public port: number) {
     this.server = httpServer;

@@ -1,13 +1,20 @@
 import { WebSocket, WebSocketServer, RawData } from 'ws';
-import { MSG_TYPES, WsMessage, RegData } from './types';
+import { Users } from '../user/users';
+import { UserDb } from '../db/userDb';
+import { MSG_TYPES, WsMessage } from './types';
 
 export class WsServer {
+  private readonly users: Users;
   private readonly connections: WebSocket[] = [];
 
-  // constructor(private readonly wss = new WebSocket.Server({ port: 3000 })) {
-  constructor(private readonly wss = new WebSocketServer({ port: 3000 })) {
+  constructor(
+    private readonly userDb: UserDb,
+    private readonly wss = new WebSocketServer({ port: 3000 })
+  ) {
+    this.users = new Users(this.userDb);
+
     wss.on('connection', (ws, _req) => {
-      console.log('WebSocket connection');
+      console.log('WebSocket new connection');
       this.connections.push(ws);
 
       ws.on('message', (message) => {
@@ -20,6 +27,7 @@ export class WsServer {
       });
 
       ws.on('close', () => {
+        // this.users.delete(ws);
         console.log('WebSocket close');
       });
     });
@@ -36,25 +44,32 @@ export class WsServer {
     return JSON.stringify({ ...msg, data: JSON.stringify(msg.data) });
   }
 
+  updateWinners(): void {
+    // maybe this.userDb ???
+    const data = this.users
+      .getAll()
+      .filter((user) => user.winsCount > 0)
+      .map((user) => ({
+        name: user.name,
+        wins: user.winsCount,
+      }));
+
+    const winnersStr = this.stringifyWsMessage({
+      type: MSG_TYPES.updateWinners,
+      data,
+      id: 0,
+    });
+
+    this.connections.forEach((ws) => ws.send(winnersStr));
+  }
+
   handleMessage(ws: WebSocket, msg: WsMessage): void {
     console.log('>> ', msg);
 
     switch (msg.type) {
-      case 'reg':
-        {
-          const out = {
-            type: MSG_TYPES.registration,
-            data: {
-              name: (msg.data as RegData).name,
-              index: '1',
-              // error: false,
-              // errorText: '',
-            },
-            id: 0,
-          };
-          ws.send(this.stringifyWsMessage(out));
-        }
-
+      case MSG_TYPES.registration:
+        ws.send(this.stringifyWsMessage(this.users.addUser(ws, msg)));
+        this.updateWinners();
         break;
 
       // case 'joinGame':

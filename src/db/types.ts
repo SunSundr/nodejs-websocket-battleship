@@ -1,8 +1,9 @@
-export interface User {
+export interface UserData {
   hash: string;
   salt: string;
+  winn?: number;
 }
 
 export interface DbObj {
-  [name: string]: User;
+  [name: string]: UserData;
 }
