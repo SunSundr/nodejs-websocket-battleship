@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "es2016",
+    "module": "CommonJS",
+    "target": "ESNext",
     "rootDir": "./src",
     "outDir": "build",
     "sourceMap": true,
@@ -16,6 +16,6 @@
     "skipLibCheck": true 
   },
   "files": ["src/index.ts"],
-  "include": ["src/**/*.{ts,js}", "index.js"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules"]
 }

@@ -1,12 +1,10 @@
 {
-    "name": "ws_task",
+    "name": "nodejs-battleship",
     "version": "1.0.0",
-    "description": "Template for the WebSocket remote control task",
-    "main": "index.js",
-    "type": "module",
+    "description": "",
+    "main": "src/index.ts",
     "scripts": {
-        "start": "node ./index.js",
-        "start:dev": "nodemon ./index.js",
+        "start:dev": "nodemon --signal SIGINT",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "author": "Andrei Auchynnikau",

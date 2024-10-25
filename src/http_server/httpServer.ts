@@ -8,6 +8,7 @@ export const httpServer = http.createServer((req, res) => {
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
+      console.log('ERROR', filePath);
       res.writeHead(404);
       res.end(JSON.stringify(err));
 
