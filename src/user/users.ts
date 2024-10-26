@@ -8,6 +8,10 @@ export class Users {
 
   constructor(private readonly userDb: UserDb) {}
 
+  count(): number {
+    return this.users.size;
+  }
+
   getAll(): User[] {
     return Array.from(this.users.values());
   }

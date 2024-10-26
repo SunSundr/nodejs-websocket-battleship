@@ -6,7 +6,8 @@ import { GameBoard } from '../game/gameBoard';
 export class User {
   winsCount = 0;
   private readonly gameBoardMap = new Map<string, GameBoard>();
-  readonly rooms: Room[] = [];
+  readonly rooms = new Set<Room>();
+
   readonly id: string;
 
   constructor(
@@ -17,10 +18,14 @@ export class User {
   }
 
   addGameBoard(gameId: string): GameBoard {
-    const gameBoard = new GameBoard();
+    const gameBoard = new GameBoard(this);
     this.gameBoardMap.set(gameId, gameBoard);
 
     return gameBoard;
+  }
+
+  deleteGameBoard(gameId: string): void {
+    this.gameBoardMap.delete(gameId);
   }
 
   gameBoard(gameId: string): GameBoard {

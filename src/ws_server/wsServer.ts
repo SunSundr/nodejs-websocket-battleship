@@ -4,8 +4,9 @@ import { Users } from '../user/users';
 import { User } from '../user/user';
 import { UserDb } from '../db/userDb';
 import { Room } from '../game/room';
-import { getErrorMessage, printError } from '../utils/error';
-import { MSG_TYPES, WsMessage } from './types';
+import { getErrorMessage } from '../utils/error';
+import { printCommand, printError, printInfo } from '../utils/print';
+import { MSG_TYPES, WsMessage, RegData, AttackData } from './types';
 import { RoomIndex, GameData, ShipsData } from '../game/types';
 import { CMD_PREFIX } from '../config';
 // import { RoomData } from '../game/types';
@@ -24,7 +25,7 @@ export class WsServer {
     this.users = new Users(this.userDb);
 
     wss.on('connection', (ws, _req) => {
-      console.log('WebSocket: new connection');
+      console.log('WebSocket: new connection...');
       this.connections.push(ws);
 
       ws.on('message', (message) => {
@@ -39,9 +40,24 @@ export class WsServer {
 
       ws.on('close', () => {
         const user = this.users.getUser(ws);
-        this.users.delete(ws);
+        user?.rooms.forEach((room) => {
+          if (room.isFull()) {
+            const user2 = room.anotherPlayer(user);
+            // if (user2) this.finish(user2.connection, user, false);
+            if (user2) this.diconnect(user2.connection);
+          }
+
+          this.rooms.delete(room.id);
+        });
         removeFromArray(this.connections, ws);
-        console.log(CMD_PREFIX.info, `User ${user?.id} disconnected (WebSocket closed)`);
+        this.updateRooms(ws);
+        this.users.delete(ws);
+        console.log(
+          CMD_PREFIX.info,
+          user
+            ? `User ${user.name} (ID '${user?.id}') disconnected.`
+            : 'WebSocket connection closed.'
+        );
       });
 
       ws.on('error', (err) => {
@@ -49,7 +65,7 @@ export class WsServer {
       });
     });
 
-    wss.on('close', () => console.log('WebSocketServer closed')); // restart ?
+    wss.on('close', () => console.log(CMD_PREFIX.warn, 'WebSocketServer closed')); // restart ?
     wss.on('listening', () => console.log(`WebSocketServer listening on port ${this.port}`));
   }
 
@@ -70,7 +86,26 @@ export class WsServer {
     return JSON.stringify({ ...msg, data: JSON.stringify(msg.data) });
   }
 
-  updateWinners(): void {
+  registration(ws: WebSocket, msg: WsMessage): boolean {
+    const result = this.users.addUser(ws, msg);
+    ws.send(this.stringifyWsMessage(result));
+    const error = (result.data as RegData)?.errorText;
+    if (error) {
+      printError(error);
+
+      return false;
+    }
+
+    const user = this.users.getUser(ws);
+    printCommand(
+      MSG_TYPES.registration,
+      `User ${user?.name} (ID '${user?.id}') has successfully registered.`
+    );
+
+    return true;
+  }
+
+  updateWinners(ws: WebSocket, single = false): void {
     // maybe this.userDb ???
     const data = this.users
       .getAll()
@@ -86,14 +121,24 @@ export class WsServer {
       id: 0,
     });
 
-    this.connections.forEach((ws) => ws.send(winnersStr));
+    if (single || this.users.count() === 1) {
+      ws.send(winnersStr);
+      const user = this.users.getUser(ws);
+      printCommand(
+        MSG_TYPES.updateWinners,
+        `User ${user?.name} (ID '${user?.id}') has been sent a list of winners.`
+      );
+    } else {
+      this.connections.forEach((uws) => uws.send(winnersStr));
+      printCommand(MSG_TYPES.updateRoom, 'All connections have been notified of the winners.');
+    }
   }
 
   createRoom(ws: WebSocket): void {
     Room.create(this.users.getUser(ws), this.rooms);
   }
 
-  updateRooms(): void {
+  updateRooms(ws: WebSocket, single = false): void {
     const data = Array.from(this.rooms.values())
       .filter((room) => !room.isFull())
       .map((room) => ({
@@ -107,7 +152,20 @@ export class WsServer {
       id: 0,
     });
 
-    this.connections.forEach((ws) => ws.send(roomsStr));
+    if (single || this.users.count() === 1) {
+      ws.send(roomsStr);
+      const user = this.users.getUser(ws);
+      printCommand(
+        MSG_TYPES.updateRoom,
+        `User ${user?.name} (ID '${user?.id}') has been sent a list of available rooms.`
+      );
+    } else {
+      this.connections.forEach((uws) => uws.send(roomsStr));
+      printCommand(
+        MSG_TYPES.updateRoom,
+        'All connections have been notified of rooms with a single player.'
+      );
+    }
   }
 
   startGame(gameId: string, user1: User, user2: User): void {
@@ -123,6 +181,11 @@ export class WsServer {
         })
       );
     });
+    printCommand(
+      MSG_TYPES.startGame,
+      `Start of a game between ${user1.name} (ID '${user1.id}') and ${user1.name} (ID '${user2.id}').`
+    );
+    printInfo('The first player to submit their ship positions goes first.');
   }
 
   addShips(ws: WebSocket, shipsData: ShipsData): void {
@@ -131,51 +194,129 @@ export class WsServer {
       const user1 = this.users.getUser(ws);
       if (user1) {
         const gameBoard = user1.gameBoard(shipsData.gameId);
-        gameBoard.addShips(shipsData.ships);
+        gameBoard.addShips(shipsData.ships, room);
         gameBoard.readyState = true;
+        printCommand(
+          MSG_TYPES.addShips,
+          `Initialized ship positions for ${user1.name} (ID '${user1.id}')`
+        );
         const user2 = room.getPlayer(shipsData.indexPlayer); // or const user2 = room.anotherPlayer(user1);
         if (user2 && user2.gameBoard(shipsData.gameId).readyState) {
           this.startGame(shipsData.gameId, user1, user2);
+          this.turn(room, false);
+        } else {
+          room.setNextTurn(user1);
         }
       } else {
-        printError(`User ID '${shipsData.indexPlayer}' in Room ID '${room.id}' not found`);
+        printError(`User ID '${shipsData.indexPlayer}' in Room ID '${room.id}' not found.`);
       }
     } else {
-      printError(`Room with game ID '${shipsData.gameId}' not found`);
+      printError(`Room with game ID '${shipsData.gameId}' not found.`);
     }
   }
 
-  addUserToRoom(ws: WebSocket, roomId: string | number): void {
+  addUserToRoom(ws: WebSocket, roomId: string | number): boolean {
     const room = this.rooms.get(roomId);
     const user = this.users.getUser(ws);
     if (user && room) {
-      room.addPlayer(user);
-      if (room.isFull()) {
-        const msg = {
-          type: MSG_TYPES.createGame,
-          id: 0,
-        };
-        room.allPlayers().forEach((usr) => {
-          usr.addGameBoard(room.gameId());
-          const uws = room.anotherPlayer(usr)?.connection;
-          if (uws) {
-            const data: GameData = {
-              idGame: room.gameId(),
-              idPlayer: usr.id,
-            };
-            uws.send(
-              this.stringifyWsMessage({
-                ...msg,
-                data,
-              })
-            );
-          }
-        });
+      if (room.addPlayer(user)) {
+        if (room.isFull()) {
+          const msg = {
+            type: MSG_TYPES.createGame,
+            id: 0,
+          };
+
+          user.rooms.add(room);
+
+          room.allPlayers().forEach((usr) => {
+            usr.addGameBoard(room.gameId());
+            const uws = room.anotherPlayer(usr)?.connection;
+            if (uws) {
+              const data: GameData = {
+                idGame: room.gameId(),
+                idPlayer: usr.id,
+              };
+              uws.send(
+                this.stringifyWsMessage({
+                  ...msg,
+                  data,
+                })
+              );
+            }
+          });
+        }
+
+        return true;
       }
+
+      printError(`User ${user.name} (ID '${user.id}') is already in the room.`);
     } else {
-      if (!user) printError('User not found (unknown connection)');
-      if (!room) printError(`Room with ID '${roomId}' not found`);
+      if (!user) printError('User not found (unknown connection).');
+      if (!room) printError(`Room with ID '${roomId}' not found.`);
     }
+
+    return false;
+  }
+
+  turn(room: Room, toggleTurn = true): void {
+    room.allPlayers().forEach((user) => {
+      user.connection.send(
+        this.stringifyWsMessage({
+          type: MSG_TYPES.turn,
+          data: {
+            currentPlayer: room.nextTurn(toggleTurn),
+          },
+          id: 0,
+        })
+      );
+    });
+  }
+
+  attack(ws: WebSocket, attackData: AttackData): boolean {
+    const user = this.users.getUser(ws);
+    if (user) {
+      const room = Room.findRoomByGameId(attackData.gameId, this.rooms);
+      if (room) {
+        if (room.nextTurn(false) === attackData.indexPlayer) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  finish(room: Room): void {
+    const { userWinner, userLoser } = room.statistic();
+    if (!userWinner || !userLoser) return;
+    [userWinner, userLoser].forEach((user) => {
+      user.connection.send(
+        this.stringifyWsMessage({
+          type: MSG_TYPES.finish,
+          data: { winPlayer: userLoser.id },
+          id: 0,
+        })
+      );
+      user.rooms.delete(room);
+      user.deleteGameBoard(room.id);
+    });
+    userWinner.addWins(1);
+    this.rooms.delete(room.id);
+    this.updateWinners(userWinner.connection);
+    printCommand(
+      MSG_TYPES.finish,
+      `User ${userWinner.name} (id '${userWinner.id}') is the winner.`
+    );
+  }
+
+  diconnect(ws: WebSocket): void {
+    ws.send(
+      this.stringifyWsMessage({
+        type: MSG_TYPES.diconnect,
+        data: '',
+        id: 0,
+      })
+    );
   }
 
   handleMessage(ws: WebSocket, msg: WsMessage): void {
@@ -183,23 +324,26 @@ export class WsServer {
 
     switch (msg.type) {
       case MSG_TYPES.registration:
-        ws.send(this.stringifyWsMessage(this.users.addUser(ws, msg)));
-        this.updateRooms();
-        this.updateWinners();
+        if (this.registration(ws, msg)) {
+          this.updateRooms(ws, true);
+          this.updateWinners(ws, true);
+        }
         break;
 
       case MSG_TYPES.createRoom:
         this.createRoom(ws);
-        this.updateRooms();
+        this.updateRooms(ws);
         break;
 
       case MSG_TYPES.addUserToRoom:
-        this.addUserToRoom(ws, (msg.data as RoomIndex).indexRoom);
-        this.updateRooms();
+        if (this.addUserToRoom(ws, (msg.data as RoomIndex).indexRoom)) this.updateRooms(ws);
         break;
 
       case MSG_TYPES.addShips:
         this.addShips(ws, msg.data as ShipsData);
+        break;
+
+      case MSG_TYPES.attack:
         break;
 
       default:

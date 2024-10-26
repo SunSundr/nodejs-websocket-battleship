@@ -54,3 +54,7 @@ export interface StartShipsData {
   ships: ClientShips[];
   currentPlayerIndex: string;
 }
+
+export interface FinishData {
+  winPlayer: number | string;
+}

@@ -4,9 +4,11 @@ import { removeFromArray } from '../utils/array';
 import { RoomUsers } from './types';
 
 export class Room {
+  private turnStatus = false;
   private readonly players: [User?, User?] = [];
   readonly id: string;
   private gameIds?: string;
+  winner?: User;
 
   constructor() {
     this.id = uuid4();
@@ -16,7 +18,7 @@ export class Room {
     const room = new Room();
     if (user) {
       room.addPlayer(user);
-      user.rooms.push(room);
+      user.rooms.add(room);
     }
 
     rooms.set(room.id, room);
@@ -24,7 +26,10 @@ export class Room {
     return room;
   }
 
-  static findRoomByGameId(gameId: string, rooms: Map<string | number, Room>): Room | undefined {
+  static findRoomByGameId(
+    gameId: string | number,
+    rooms: Map<string | number, Room>
+  ): Room | undefined {
     for (const room of Array.from(rooms.values())) {
       if (room.gameIds === gameId) return room;
     }
@@ -32,8 +37,23 @@ export class Room {
     return undefined;
   }
 
-  turnId(): string {
-    return '';
+  statistic(): { userWinner?: User; userLoser?: User } {
+    const userWinner = this.winner;
+    if (!userWinner) return {};
+    const userLoser = this.anotherPlayer(userWinner);
+    if (!userLoser) return { userWinner };
+
+    return { userWinner, userLoser };
+  }
+
+  nextTurn(toggle = true): string {
+    if (toggle) this.turnStatus = !this.turnStatus;
+
+    return this.players.map((user) => String(user?.id))[Number(this.turnStatus)];
+  }
+
+  setNextTurn(user: User): void {
+    this.turnStatus = Boolean(this.players.indexOf(user));
   }
 
   gameId(): string {
@@ -46,9 +66,15 @@ export class Room {
     return this.players.filter((user) => user !== undefined);
   }
 
-  addPlayer(user?: User): void {
-    if (this.players.includes(user)) return;
-    if (user) this.players[this.players.length ? 0 : 1] = user;
+  addPlayer(user?: User): boolean {
+    if (this.players.includes(user)) return false;
+    if (user) {
+      this.players[this.players.length ? 0 : 1] = user;
+
+      return true;
+    }
+
+    return false; // never
   }
 
   removePlayer(user: User): void {

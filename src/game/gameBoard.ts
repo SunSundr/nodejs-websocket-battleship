@@ -1,4 +1,6 @@
 import { CELLTYPE, ClientShips, ShipType } from './types';
+import { User } from '../user/user';
+import { Room } from './room';
 
 type CellState = number;
 const BOARDSIZE = 10;
@@ -10,7 +12,9 @@ export class GameBoard {
     Array(BOARDSIZE).fill(CELLTYPE.EMPTY)
   );
 
-  addShips(ships: ClientShips[]): void {
+  constructor(private readonly user: User) {}
+
+  addShips(ships: ClientShips[], room: Room): void {
     this.ships = ships;
     this.readyState = true;
     ships.forEach((ship) => {
@@ -25,8 +29,7 @@ export class GameBoard {
         }
       }
     });
-    // console.log('ORIGINAL >>', ships);
-    // console.log('RETRIEVE >>', this.retrieveShips());
+    room.setNextTurn(this.user);
   }
 
   private isShipKilled(_x: number, _y: number): boolean {
