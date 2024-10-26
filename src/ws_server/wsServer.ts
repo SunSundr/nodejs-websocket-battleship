@@ -43,7 +43,6 @@ export class WsServer {
         user?.rooms.forEach((room) => {
           if (room.isFull()) {
             const user2 = room.anotherPlayer(user);
-            // if (user2) this.finish(user2.connection, user, false);
             if (user2) this.diconnect(user2.connection);
           }
 
@@ -215,6 +214,21 @@ export class WsServer {
     }
   }
 
+  deleteRoom(ws: WebSocket, room: Room): void {
+    const users = room.allPlayers();
+    users.forEach((user) => {
+      user.rooms.delete(room);
+      user.deleteGameBoard(room.id);
+    });
+    this.rooms.delete(room.id);
+    const user = this.users.getUser(ws);
+    if (user) {
+      const msg = `User ${user.name} (ID '${user.id}') is already in the room. Room removed.`;
+      this.sendError(ws, msg);
+      printError(msg);
+    }
+  }
+
   addUserToRoom(ws: WebSocket, roomId: string | number): boolean {
     const room = this.rooms.get(roomId);
     const user = this.users.getUser(ws);
@@ -225,9 +239,7 @@ export class WsServer {
             type: MSG_TYPES.createGame,
             id: 0,
           };
-
           user.rooms.add(room);
-
           room.allPlayers().forEach((usr) => {
             usr.addGameBoard(room.gameId());
             const uws = room.anotherPlayer(usr)?.connection;
@@ -245,15 +257,15 @@ export class WsServer {
             }
           });
         }
-
-        return true;
       }
 
-      printError(`User ${user.name} (ID '${user.id}') is already in the room.`);
-    } else {
-      if (!user) printError('User not found (unknown connection).');
-      if (!room) printError(`Room with ID '${roomId}' not found.`);
+      this.deleteRoom(ws, room);
+
+      return true;
     }
+
+    if (!user) printError('User not found (unknown connection).');
+    if (!room) printError(`Room with ID '${roomId}' not found.`);
 
     return false;
   }
