@@ -1,5 +1,4 @@
 import { User } from '../user/user';
-import { Game } from './game';
 import { uuid4 } from '../utils/uuid';
 import { removeFromArray } from '../utils/array';
 import { RoomUsers } from './types';
@@ -7,7 +6,7 @@ import { RoomUsers } from './types';
 export class Room {
   private readonly players: [User?, User?] = [];
   readonly id: string;
-  private gameObj?: Game;
+  private gameIds?: string;
 
   constructor() {
     this.id = uuid4();
@@ -25,10 +24,22 @@ export class Room {
     return room;
   }
 
-  game(): Game {
-    if (!this.gameObj) this.addGame();
+  static findRoomByGameId(gameId: string, rooms: Map<string | number, Room>): Room | undefined {
+    for (const room of Array.from(rooms.values())) {
+      if (room.gameIds === gameId) return room;
+    }
 
-    return this.gameObj as Game;
+    return undefined;
+  }
+
+  turnId(): string {
+    return '';
+  }
+
+  gameId(): string {
+    if (!this.gameIds) this.gameIds = uuid4();
+
+    return this.gameIds;
   }
 
   allPlayers(): User[] {
@@ -36,11 +47,16 @@ export class Room {
   }
 
   addPlayer(user?: User): void {
+    if (this.players.includes(user)) return;
     if (user) this.players[this.players.length ? 0 : 1] = user;
   }
 
   removePlayer(user: User): void {
     removeFromArray(this.players, user);
+  }
+
+  getPlayer(userId: string): User | undefined {
+    return this.allPlayers().find((user) => user.id === userId);
   }
 
   isFull(): boolean {
@@ -56,9 +72,5 @@ export class Room {
 
   anotherPlayer(user: User): User | undefined {
     return this.allPlayers().find((player) => player !== user);
-  }
-
-  addGame(): void {
-    this.gameObj = new Game();
   }
 }

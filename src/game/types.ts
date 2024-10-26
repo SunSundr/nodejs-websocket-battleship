@@ -23,3 +23,34 @@ export interface GameData {
   idGame: number | string;
   idPlayer: number | string;
 }
+
+export type Point = {
+  x: number;
+  y: number;
+};
+
+export enum ShipType {
+  small = 'small',
+  medium = 'medium',
+  large = 'large',
+  huge = 'huge',
+  unknown = 'unknown',
+}
+
+export interface ClientShips {
+  position: Point;
+  direction: boolean;
+  type: ShipType;
+  length: number;
+}
+
+export interface ShipsData {
+  gameId: string;
+  ships: ClientShips[];
+  indexPlayer: string;
+}
+
+export interface StartShipsData {
+  ships: ClientShips[];
+  currentPlayerIndex: string;
+}

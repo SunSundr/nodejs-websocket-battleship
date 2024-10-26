@@ -16,3 +16,5 @@ Thumbs.db
 npm-debug.log
 
 /src/db/db.json
+testCase.txt
+front/main-unminimize.js

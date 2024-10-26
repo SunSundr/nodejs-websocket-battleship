@@ -1,4 +1,4 @@
-import { RoomData, RoomIndex, GameData } from '../game/types';
+import { RoomData, RoomIndex, GameData, ShipsData, StartShipsData } from '../game/types';
 
 export enum MSG_TYPES {
   registration = 'reg',
@@ -13,6 +13,9 @@ export enum MSG_TYPES {
   randomAttack = 'randomAttack',
   turn = 'turn',
   finish = 'finish',
+  diconnect = 'diconnect',
+  bot = 'single_play',
+  error = 'server_error',
 }
 
 export interface RegData {
@@ -30,6 +33,14 @@ export interface WinnersData {
 
 export interface WsMessage {
   type: MSG_TYPES;
-  data: RegData | WinnersData[] | RoomData[] | RoomIndex | GameData | string;
+  data:
+    | RegData
+    | WinnersData[]
+    | RoomData[]
+    | RoomIndex
+    | GameData
+    | ShipsData
+    | StartShipsData
+    | string;
   readonly id: number;
 }
