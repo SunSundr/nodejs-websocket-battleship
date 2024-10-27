@@ -140,7 +140,7 @@ export class WsServer {
     Room.create(this.users.getUser(ws), this.rooms);
   }
 
-  updateRooms(ws: WebSocket, single = false): void {
+  updateRooms(ws?: WebSocket, single = false): void {
     const data = Array.from(this.rooms.values())
       .filter((room) => !room.isFull())
       .map((room) => ({
@@ -154,7 +154,7 @@ export class WsServer {
       id: 0,
     });
 
-    if (single || this.users.count() === 1) {
+    if (ws && (single || this.users.count() === 1)) {
       ws.send(roomsStr);
       const user = this.users.getUser(ws);
       printCommand(
@@ -260,6 +260,8 @@ export class WsServer {
             }
           });
 
+          this.updateRooms();
+
           return false;
         }
       }
@@ -298,8 +300,11 @@ export class WsServer {
       const enemy = room.anotherPlayer(user);
       if (enemy) {
         const board = enemy.gameBoard(attackData.gameId);
-        const result = board.attack(attackData.x, attackData.y);
-        const turnPoints = [{ x: attackData.x, y: attackData.y }];
+        const { x, y } = (
+          attackData.x && attackData.y ? attackData : board.randomAttackPoint()
+        ) as { x: number; y: number };
+        const result = board.attack(x, y);
+        const turnPoints = [{ x, y }];
         if (result.status === HitType.repeat) {
           let countRepeat = 0;
           const interval = setInterval(() => {
@@ -317,6 +322,12 @@ export class WsServer {
           this.attackFeedback([ws, enemy.connection], enemy.id, result.aroundCells, HitType.miss); // check around
           if (result.shipCells)
             this.attackFeedback([ws], enemy.id, result.shipCells, HitType.killed); // kill:
+          if (result.finish) {
+            room.winner = user;
+            this.finish(room);
+
+            return;
+          }
         } else {
           // miss
           this.attackFeedback([ws, enemy.connection], enemy.id, turnPoints, HitType.miss);
@@ -404,10 +415,8 @@ export class WsServer {
         break;
 
       case MSG_TYPES.attack:
-        this.attack(ws, msg.data as AttackData);
-        break;
-
       case MSG_TYPES.randomAttack:
+        this.attack(ws, msg.data as AttackData);
         break;
 
       default:

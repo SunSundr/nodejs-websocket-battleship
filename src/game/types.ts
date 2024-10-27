@@ -66,6 +66,7 @@ export interface AttackResult {
   status: HitType;
   aroundCells?: Point[];
   shipCells?: Point[];
+  finish?: boolean;
 }
 
 export interface AttackFeedback {
@@ -76,8 +77,8 @@ export interface AttackFeedback {
 
 export interface AttackData {
   gameId: number | string;
-  x: number;
-  y: number;
+  x?: number;
+  y?: number;
   indexPlayer: number | string;
 }
 

@@ -8,6 +8,9 @@ const BOARDSIZE = 10;
 export class GameBoard {
   ships: ClientShips[] = [];
   readyState = false;
+  private unsunksCount = 0;
+  private lastShotPoint?: Point;
+  // private readonly lastShotPoints: Point[] = [];
   private readonly board: CellState[][] = Array.from({ length: BOARDSIZE }, () =>
     Array(BOARDSIZE).fill(CELLTYPE.EMPTY)
   );
@@ -17,6 +20,7 @@ export class GameBoard {
   addShips(ships: ClientShips[], room: Room): void {
     this.ships = ships;
     this.readyState = true;
+    this.unsunksCount = ships.length;
     ships.forEach((ship) => {
       const { x, y } = ship.position;
       const { length, direction } = ship;
@@ -32,11 +36,15 @@ export class GameBoard {
     room.setNextTurn(this.user);
   }
 
-  private isShipKilledCells(x: number, y: number): { Killed: boolean; shipCells: Point[] } {
-    const shipCells = this.getShipCells(x, y);
-    const Killed = shipCells.every((cell) => this.board[cell.y][cell.x] === CELLTYPE.SHIP_HIT);
+  finish(): boolean {
+    return this.readyState && this.unsunksCount === 0;
+  }
 
-    return { Killed, shipCells };
+  private isShipKilledCells(x: number, y: number): { Killed: boolean; cells: Point[] } {
+    const cells = this.getShipCells(x, y);
+    const Killed = cells.every((cell) => this.board[cell.y][cell.x] === CELLTYPE.SHIP_HIT);
+
+    return { Killed, cells };
   }
 
   private getShipCells(x: number, y: number): Point[] {
@@ -104,7 +112,51 @@ export class GameBoard {
     return affectedCells;
   }
 
-  randomAttack(_x?: number, _y?: number): void {}
+  randomAttackPoint(): Point {
+    const directions = [
+      // { dx: -1, dy: -1 }, // top left
+      { dx: 0, dy: -1 }, // top
+      // { dx: 1, dy: -1 }, // top right
+      { dx: -1, dy: 0 }, // left
+      { dx: 1, dy: 0 }, // right
+      // { dx: -1, dy: 1 }, // bottom left
+      { dx: 0, dy: 1 }, // bottom
+      // { dx: 1, dy: 1 }, // bottom right
+    ];
+
+    let targetCell: Point | undefined;
+    if (this.lastShotPoint) {
+      const { x, y } = this.lastShotPoint;
+      const surroundingCells = directions
+        .map(({ dx, dy }) => ({ x: x + dx, y: y + dy }))
+        .filter(
+          (cell) =>
+            cell.x >= 0 &&
+            cell.x < BOARDSIZE &&
+            cell.y >= 0 &&
+            cell.y < BOARDSIZE &&
+            this.board[cell.y][cell.x] !== CELLTYPE.HIT &&
+            this.board[cell.y][cell.x] !== CELLTYPE.SHIP_HIT
+        );
+      if (surroundingCells.length > 0)
+        targetCell = surroundingCells[Math.floor(Math.random() * surroundingCells.length)];
+    }
+
+    if (!targetCell) {
+      const emptyCells = [];
+      for (let i = 0; i < BOARDSIZE; i++) {
+        for (let j = 0; j < BOARDSIZE; j++) {
+          if (this.board[i][j] !== CELLTYPE.HIT && this.board[i][j] !== CELLTYPE.SHIP_HIT) {
+            emptyCells.push({ x: j, y: i });
+          }
+        }
+      }
+
+      targetCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    }
+
+    return targetCell;
+  }
 
   attack(x: number, y: number): AttackResult {
     if (this.board[y][x] === CELLTYPE.HIT || this.board[y][x] === CELLTYPE.SHIP_HIT) {
@@ -122,10 +174,19 @@ export class GameBoard {
 
       const shipCells = this.isShipKilledCells(x, y);
       if (shipCells.Killed) {
+        this.unsunksCount -= 1;
+        this.lastShotPoint = undefined;
         const aroundCells = this.markSurroundingsAsHit(x, y);
 
-        return { status: HitType.killed, aroundCells, shipCells: shipCells.shipCells };
+        return {
+          status: HitType.killed,
+          aroundCells,
+          shipCells: shipCells.cells,
+          finish: this.finish(),
+        };
       }
+
+      this.lastShotPoint = { x, y };
 
       return { status: HitType.shot, aroundCells: [] };
     }
