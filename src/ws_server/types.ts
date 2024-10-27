@@ -5,6 +5,8 @@ import {
   ShipsData,
   StartShipsData,
   FinishData,
+  AttackFeedback,
+  AttackData,
 } from '../game/types';
 
 export enum MSG_TYPES {
@@ -23,6 +25,7 @@ export enum MSG_TYPES {
   diconnect = 'diconnect',
   bot = 'single_play',
   error = 'server_error',
+  info = 'server_info',
 }
 
 export interface RegData {
@@ -42,13 +45,6 @@ export interface TurnData {
   currentPlayer: number | string;
 }
 
-export interface AttackData {
-  gameId: number | string;
-  x: number;
-  y: number;
-  indexPlayer: number | string;
-}
-
 export interface WsMessage {
   type: MSG_TYPES;
   data:
@@ -60,8 +56,9 @@ export interface WsMessage {
     | ShipsData
     | StartShipsData
     | TurnData
-    | AttackData
     | FinishData
+    | AttackFeedback
+    | AttackData
     | string;
   readonly id: number;
 }

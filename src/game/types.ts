@@ -5,6 +5,21 @@ export enum CELLTYPE {
   SHIP_HIT = 0b011,
 }
 
+export enum ShipType {
+  small = 'small',
+  medium = 'medium',
+  large = 'large',
+  huge = 'huge',
+  unknown = 'unknown',
+}
+
+export enum HitType {
+  miss = 'miss',
+  shot = 'shot',
+  killed = 'killed',
+  repeat = 'repeat',
+}
+
 export interface RoomUsers {
   name: string;
   index: number | string;
@@ -29,14 +44,6 @@ export type Point = {
   y: number;
 };
 
-export enum ShipType {
-  small = 'small',
-  medium = 'medium',
-  large = 'large',
-  huge = 'huge',
-  unknown = 'unknown',
-}
-
 export interface ClientShips {
   position: Point;
   direction: boolean;
@@ -53,6 +60,25 @@ export interface ShipsData {
 export interface StartShipsData {
   ships: ClientShips[];
   currentPlayerIndex: string;
+}
+
+export interface AttackResult {
+  status: HitType;
+  aroundCells?: Point[];
+  shipCells?: Point[];
+}
+
+export interface AttackFeedback {
+  position: Point;
+  currentPlayer: number | string;
+  status: HitType;
+}
+
+export interface AttackData {
+  gameId: number | string;
+  x: number;
+  y: number;
+  indexPlayer: number | string;
 }
 
 export interface FinishData {

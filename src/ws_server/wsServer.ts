@@ -6,8 +6,8 @@ import { UserDb } from '../db/userDb';
 import { Room } from '../game/room';
 import { getErrorMessage } from '../utils/error';
 import { printCommand, printError, printInfo } from '../utils/print';
-import { MSG_TYPES, WsMessage, RegData, AttackData } from './types';
-import { RoomIndex, GameData, ShipsData } from '../game/types';
+import { MSG_TYPES, WsMessage, RegData } from './types';
+import { RoomIndex, GameData, ShipsData, AttackData, HitType, Point } from '../game/types';
 import { CMD_PREFIX } from '../config';
 // import { RoomData } from '../game/types';
 // import { uuid4 } from '../utils/uuid';
@@ -64,6 +64,9 @@ export class WsServer {
       });
     });
 
+    wss.on('error', (err) =>
+      console.log(CMD_PREFIX.error, 'WebSocketServer error', getErrorMessage(err))
+    );
     wss.on('close', () => console.log(CMD_PREFIX.warn, 'WebSocketServer closed')); // restart ?
     wss.on('listening', () => console.log(`WebSocketServer listening on port ${this.port}`));
   }
@@ -256,6 +259,8 @@ export class WsServer {
               );
             }
           });
+
+          return false;
         }
       }
 
@@ -284,18 +289,61 @@ export class WsServer {
     });
   }
 
-  attack(ws: WebSocket, attackData: AttackData): boolean {
+  attack(ws: WebSocket, attackData: AttackData): void {
     const user = this.users.getUser(ws);
-    if (user) {
-      const room = Room.findRoomByGameId(attackData.gameId, this.rooms);
-      if (room) {
-        if (room.nextTurn(false) === attackData.indexPlayer) {
-          return true;
+    if (!user) return;
+    const room = Room.findRoomByGameId(attackData.gameId, this.rooms);
+    if (!room) return;
+    if (room.nextTurn(false) === attackData.indexPlayer) {
+      const enemy = room.anotherPlayer(user);
+      if (enemy) {
+        const board = enemy.gameBoard(attackData.gameId);
+        const result = board.attack(attackData.x, attackData.y);
+        const turnPoints = [{ x: attackData.x, y: attackData.y }];
+        if (result.status === HitType.repeat) {
+          let countRepeat = 0;
+          const interval = setInterval(() => {
+            this.attackFeedback([ws], enemy.id, turnPoints, HitType.miss);
+            if (countRepeat === 2) clearInterval(interval);
+            countRepeat++;
+          }, 600);
+
+          return;
         }
+
+        if (result.aroundCells) {
+          const hitType = result.shipCells ? HitType.killed : HitType.shot;
+          this.attackFeedback([ws, enemy.connection], enemy.id, turnPoints, hitType); // shot or kill:
+          this.attackFeedback([ws, enemy.connection], enemy.id, result.aroundCells, HitType.miss); // check around
+          if (result.shipCells)
+            this.attackFeedback([ws], enemy.id, result.shipCells, HitType.killed); // kill:
+        } else {
+          // miss
+          this.attackFeedback([ws, enemy.connection], enemy.id, turnPoints, HitType.miss);
+          room.nextTurn();
+        }
+
+        this.turn(room, false);
       }
     }
+  }
 
-    return false;
+  attackFeedback(wsa: WebSocket[], userId: string, points: Point[], status: HitType): void {
+    wsa.forEach((ws) => {
+      points.forEach((point) => {
+        ws.send(
+          this.stringifyWsMessage({
+            type: MSG_TYPES.attack,
+            data: {
+              position: { ...point },
+              currentPlayer: userId,
+              status,
+            },
+            id: 0,
+          })
+        );
+      });
+    });
   }
 
   finish(room: Room): void {
@@ -332,7 +380,7 @@ export class WsServer {
   }
 
   handleMessage(ws: WebSocket, msg: WsMessage): void {
-    console.log('>> ', msg);
+    // console.log('>> ', msg);
 
     switch (msg.type) {
       case MSG_TYPES.registration:
@@ -356,6 +404,10 @@ export class WsServer {
         break;
 
       case MSG_TYPES.attack:
+        this.attack(ws, msg.data as AttackData);
+        break;
+
+      case MSG_TYPES.randomAttack:
         break;
 
       default:

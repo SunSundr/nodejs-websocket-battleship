@@ -1,11 +1,11 @@
 import { WebSocket } from 'ws';
 import { uuid4 } from '../utils/uuid';
-import { Room } from '../game/room';
+import { type Room } from '../game/room';
 import { GameBoard } from '../game/gameBoard';
 
 export class User {
   winsCount = 0;
-  private readonly gameBoardMap = new Map<string, GameBoard>();
+  private readonly gameBoardMap = new Map<string | number, GameBoard>();
   readonly rooms = new Set<Room>();
 
   readonly id: string;
@@ -17,7 +17,7 @@ export class User {
     this.id = uuid4();
   }
 
-  addGameBoard(gameId: string): GameBoard {
+  addGameBoard(gameId: string | number): GameBoard {
     const gameBoard = new GameBoard(this);
     this.gameBoardMap.set(gameId, gameBoard);
 
@@ -28,7 +28,7 @@ export class User {
     this.gameBoardMap.delete(gameId);
   }
 
-  gameBoard(gameId: string): GameBoard {
+  gameBoard(gameId: string | number): GameBoard {
     let gameBoard = this.gameBoardMap.get(gameId);
     if (!gameBoard) gameBoard = this.addGameBoard(gameId);
 
