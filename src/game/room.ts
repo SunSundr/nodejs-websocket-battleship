@@ -9,6 +9,7 @@ export class Room {
   readonly id: string;
   private gameIds?: string;
   winner?: User;
+  botRoom = false;
 
   constructor() {
     this.id = uuid4();

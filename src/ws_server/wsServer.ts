@@ -1,3 +1,4 @@
+import { styleText } from 'node:util';
 import { WebSocket, WebSocketServer } from 'ws';
 import { removeFromArray } from '../utils/array';
 import { Users } from '../user/users';
@@ -6,13 +7,11 @@ import { UserDb } from '../db/userDb';
 import { Room } from '../game/room';
 import { parseWsMessage, stringifyWsMessage } from './wsMessage';
 import { getErrorMessage } from '../utils/error';
-import { printCommand, printError, printInfo } from '../utils/print';
+import { printCommand, printError, printInfo, formatID } from '../utils/print';
 import { MSG_TYPES, WsMessage, RegData } from './types';
 import { RoomIndex, GameData, ShipsData, AttackData, HitType, Point } from '../game/types';
 import { BotClient } from '../bot/botClient';
 import { CMD_PREFIX, WSS_PORT } from '../config';
-// import { RoomData } from '../game/types';
-// import { uuid4 } from '../utils/uuid';
 
 export class WsServer {
   private readonly users: Users;
@@ -65,7 +64,7 @@ export class WsServer {
         console.log(
           CMD_PREFIX.info,
           user
-            ? `User ${user.name} (ID '${user?.id}') disconnected.`
+            ? `User ${user.name} ${formatID(user.id)} disconnected.`
             : 'WebSocket connection closed.'
         );
       });
@@ -79,7 +78,9 @@ export class WsServer {
       console.log(CMD_PREFIX.error, 'WebSocketServer error', getErrorMessage(err))
     );
     wss.on('close', () => console.log(CMD_PREFIX.warn, 'WebSocketServer closed')); // restart ?
-    wss.on('listening', () => console.log(`WebSocketServer listening on port ${this.port}`));
+    wss.on('listening', () => {
+      console.log(`\nWebSocketServer listening on port ${styleText('yellow', String(this.port))}`);
+    });
   }
 
   registration(ws: WebSocket, msg: WsMessage): boolean {
@@ -95,13 +96,13 @@ export class WsServer {
     const user = this.users.getUser(ws);
     printCommand(
       MSG_TYPES.registration,
-      `User ${user?.name} (ID '${user?.id}') has successfully registered.`
+      `User ${user?.name} ${formatID(user?.id)} has successfully registered.`
     );
 
     return true;
   }
 
-  updateWinners(ws: WebSocket, single = false): void {
+  updateWinners(ws?: WebSocket, single = false): void {
     // maybe this.userDb ???
     const data = this.users
       .getAll()
@@ -117,12 +118,12 @@ export class WsServer {
       id: 0,
     });
 
-    if (single || this.users.count() === 1) {
+    if (ws && (single || this.users.count() === 1)) {
       ws.send(winnersStr);
       const user = this.users.getUser(ws);
       printCommand(
         MSG_TYPES.updateWinners,
-        `User ${user?.name} (ID '${user?.id}') has been sent a list of winners.`
+        `User ${user?.name} ${formatID(user?.id)} has been sent a list of winners.`
       );
     } else {
       this.connections.forEach((uws) => uws.send(winnersStr));
@@ -140,6 +141,7 @@ export class WsServer {
 
   startGameWithBot(user: User, botWs: WebSocket): void {
     const room = Room.create(this.users.getUser(user.connection), this.rooms);
+    room.botRoom = true;
     this.users.addBotUser(botWs);
     this.addUserToRoom(botWs, room.id);
   }
@@ -167,7 +169,7 @@ export class WsServer {
       const user = this.users.getUser(ws);
       printCommand(
         MSG_TYPES.updateRoom,
-        `User ${user?.name} (ID '${user?.id}') has been sent a list of available rooms.`
+        `User ${user?.name} ${formatID(user?.id)} has been sent a list of available rooms.`
       );
     } else {
       this.connections.forEach((uws) => uws.send(roomsStr));
@@ -193,7 +195,7 @@ export class WsServer {
     });
     printCommand(
       MSG_TYPES.startGame,
-      `Start of a game between ${user1.name} (ID '${user1.id}') and ${user2.name} (ID '${user2.id}').`
+      `Start of a game between ${user1.name} ${formatID(user1.id)} and ${user2.name} ${formatID(user2.id)}.`
     );
     printInfo('The first player to submit their ship positions goes first.');
   }
@@ -208,7 +210,7 @@ export class WsServer {
         gameBoard.readyState = true;
         printCommand(
           MSG_TYPES.addShips,
-          `Initialized ship positions for ${user1.name} (ID '${user1.id}')`
+          `Initialized ship positions for ${user1.name} ${formatID(user1.id)}`
         );
         const user2 = room.getPlayer(shipsData.indexPlayer); // or const user2 = room.anotherPlayer(user1);
         if (user2 && user2.gameBoard(shipsData.gameId).readyState) {
@@ -234,7 +236,7 @@ export class WsServer {
     this.rooms.delete(room.id);
     const user = this.users.getUser(ws);
     if (user) {
-      const msg = `User ${user.name} (ID '${user.id}') is already in the room. Room removed.`;
+      const msg = `User ${user.name} ${formatID(user.id)} is already in the room. Room removed.`;
       this.sendError(ws, msg);
       printError(msg);
     }
@@ -324,11 +326,12 @@ export class WsServer {
           //   if (countRepeat === 2) clearInterval(interval);
           //   countRepeat++;
           // }, 600);
-
-          console.log('[REPEAT]', `Click on [${attackData.x}, ${attackData.y}]`);
+          console.log(CMD_PREFIX.repeat, `Click on [${attackData.x}, ${attackData.y}]`);
           // this.turn(room, false);
 
           // return;
+        } else {
+          printCommand(MSG_TYPES.attack, `${result.status} - ${user.name} ${formatID(user.id)}`);
         }
 
         if (result.aroundCells) {
@@ -352,7 +355,7 @@ export class WsServer {
         this.turn(room, false);
       }
     } else if (attackData.x) {
-      console.log('[IGNORE]', `Click on [${attackData.x}, ${attackData.y}]`);
+      console.log(CMD_PREFIX.ignore, `Click on [${attackData.x}, ${attackData.y}]`);
     }
   }
 
@@ -388,7 +391,7 @@ export class WsServer {
       user.rooms.delete(room);
       user.deleteGameBoard(room.id);
     });
-    userWinner.addWins(1);
+    if (!room.botRoom) userWinner.addWins(1);
     this.rooms.delete(room.id);
     this.updateWinners(userWinner.connection);
     printCommand(

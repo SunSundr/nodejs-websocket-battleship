@@ -1,3 +1,4 @@
+import { styleText } from 'node:util';
 import { httpServer } from '../http_server/httpServer';
 import { WsServer } from '../ws_server/wsServer';
 import { UserDb } from '../db/userDb';
@@ -18,7 +19,10 @@ export class App {
 
   start(): void {
     this.server.listen(this.httpPort, () => {
-      console.log(`Start static http server on the ${this.httpPort} port`);
+      console.log(
+        `Start static http server on the ${styleText('yellow', String(this.httpPort))} port`
+      );
+      console.log('-'.repeat(50));
     });
   }
 }
