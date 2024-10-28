@@ -1,21 +1,52 @@
 {
-    "name": "ws_task",
+    "name": "nodejs-battleship",
     "version": "1.0.0",
-    "description": "Template for the WebSocket remote control task",
-    "main": "index.js",
-    "type": "module",
+    "description": "",
+    "main": "src/index.ts",
     "scripts": {
-        "start": "node ./index.js",
-        "start:dev": "nodemon ./index.js",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "start:dev": "nodemon --signal SIGINT",
+        "start": "webpack --mode=production --node-env=production && node build/battleship.js",
+        "build:dev": "webpack --mode=development",
+        "build:prod": "webpack --mode=production --node-env=production",
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "lint": "eslint . --ext .ts",
+        "lint:fix": "eslint --fix .",
+        "format": "prettier --check \"src/**/*.ts\"",
+         "format:fix": "prettier --write \"src/**/*.ts\""
     },
     "author": "Andrei Auchynnikau",
     "keywords": [],
     "license": "ISC",
-    "devDependencies": {
-        "nodemon": "^2.0.16"
-    },
     "dependencies": {
         "ws": "^8.8.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.13.0",
+        "@types/node": "^22.7.6",
+        "@types/ws": "^8.5.12",
+        "@typescript-eslint/eslint-plugin": "^7.18.0",
+        "@typescript-eslint/parser": "^7.18.0",
+        "clean-webpack-plugin": "^4.0.0",
+        "eslint": "^8.57.1",
+        "eslint-config-airbnb-typescript": "^18.0.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-import-resolver-webpack": "^0.13.9",
+        "eslint-plugin-import": "^2.31.0",
+        "eslint-plugin-prettier": "^5.2.1",
+        "globals": "^15.11.0",
+        "nodemon": "^3.1.7",
+        "prettier": "^3.3.3",
+        "ts-loader": "^9.5.1",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.6.3",
+        "typescript-eslint": "^8.10.0",
+        "webpack": "^5.95.0",
+        "webpack-cli": "^5.1.4",
+        "webpack-node-externals": "^3.0.0"
+    },
+    "resolutions": {
+        "eslint": "^8.57.1",
+        "@typescript-eslint/eslint-plugin": "^7.18.0",
+        "@typescript-eslint/parser": "^7.18.0"
     }
 }
