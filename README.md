@@ -1,4 +1,7 @@
-# RSSchool NodeJS websocket task template
+## Battleship Game (Node.js)
+
+This repository contains a Node.js implementation of the classic Battleship game.
+
 > Static http server and base task packages. 
 > By default WebSocket client tries to connect to the 3000 port.
 
