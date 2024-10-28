@@ -79,14 +79,15 @@ export class BotClient {
 
   attack(): void {
     if (this.turnState) {
-      const result = this.enemyBoard.randomAttack();
+      // const result = this.enemyBoard.randomAttack();
+      const result = this.enemyBoard.randomAttackPoint();
       this.sendMessage({
         type: MSG_TYPES.attack,
         data: {
           // AttackData
           gameId: this.idGame,
-          x: result.point.x,
-          y: result.point.y,
+          x: result.x,
+          y: result.y,
           indexPlayer: this.idPlayer,
         },
         id: 0,
@@ -95,8 +96,8 @@ export class BotClient {
   }
 
   setAttackResult(data: AttackFeedback): void {
-    if (this.idPlayer !== data.currentPlayer) {
-      this.enemyBoard.attack(data.position.x, data.position.y);
+    if (this.idPlayer === data.currentPlayer) {
+      this.enemyBoard.setState(data.position.x, data.position.y, data.status);
     }
   }
 

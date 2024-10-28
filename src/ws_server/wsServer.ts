@@ -334,10 +334,10 @@ export class WsServer {
           console.log(CMD_PREFIX.repeat, `Click on [${attackData.x}, ${attackData.y}]`);
           // this.turn(room, false);
 
-          // return;
-        } else {
-          printCommand(MSG_TYPES.attack, `${result.status} - ${user.name} ${formatID(user.id)}`);
+          return;
         }
+
+        printCommand(MSG_TYPES.attack, `${result.status} - ${user.name} ${formatID(user.id)}`);
 
         if (result.aroundCells) {
           const hitType = result.shipCells ? HitType.killed : HitType.shot;

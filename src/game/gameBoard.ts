@@ -113,6 +113,19 @@ export class GameBoard {
     return affectedCells;
   }
 
+  setState(x: number, y: number, hitType: HitType): void {
+    switch (hitType) {
+      case HitType.miss:
+        this.board[y][x] = CELLTYPE.HIT;
+        break;
+      case HitType.shot:
+      case HitType.killed:
+        this.board[y][x] = CELLTYPE.SHIP_HIT;
+        break;
+      default:
+    }
+  }
+
   randomAttackPoint(): Point {
     const directions = [
       // { dx: -1, dy: -1 }, // top left
