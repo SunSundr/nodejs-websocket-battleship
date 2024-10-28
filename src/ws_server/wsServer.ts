@@ -53,7 +53,11 @@ export class WsServer {
         user?.rooms.forEach((room) => {
           if (room.isFull()) {
             const user2 = room.anotherPlayer(user);
-            if (user2) this.diconnect(user2.connection);
+            if (room.botRoom) {
+              user2?.connection.close();
+            } else if (user2) {
+              this.diconnect(user2.connection);
+            }
           }
 
           this.rooms.delete(room.id);
@@ -180,7 +184,7 @@ export class WsServer {
     }
   }
 
-  startGame(gameId: string, user1: User, user2: User): void {
+  startGame(gameId: string, user1: User, user2: User, showInfo = true): void {
     [user1, user2].forEach((user) => {
       user.connection.send(
         stringifyWsMessage({
@@ -197,7 +201,7 @@ export class WsServer {
       MSG_TYPES.startGame,
       `Start of a game between ${user1.name} ${formatID(user1.id)} and ${user2.name} ${formatID(user2.id)}.`
     );
-    printInfo('The first player to submit their ship positions goes first.');
+    if (showInfo) printInfo('The first player to submit their ship positions goes first.');
   }
 
   addShips(ws: WebSocket, shipsData: ShipsData): void {
@@ -214,7 +218,8 @@ export class WsServer {
         );
         const user2 = room.getPlayer(shipsData.indexPlayer); // or const user2 = room.anotherPlayer(user1);
         if (user2 && user2.gameBoard(shipsData.gameId).readyState) {
-          this.startGame(shipsData.gameId, user1, user2);
+          if (room.botRoom) room.setNextTurn(user2);
+          this.startGame(shipsData.gameId, user1, user2, !room.botRoom);
           this.turn(room, false);
         } else {
           room.setNextTurn(user1);

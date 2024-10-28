@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { GameBoard } from '../game/gameBoard';
-import { GameData } from '../game/types';
+import { GameData, AttackFeedback } from '../game/types';
+// import { GameData, HitType } from '../game/types';
 import { parseWsMessage, stringifyWsMessage } from '../ws_server/wsMessage';
 import { MSG_TYPES, WsMessage, TurnData } from '../ws_server/types';
 import { printError } from '../utils/print';
@@ -13,6 +14,7 @@ export class BotClient {
   private idGame: string | number = 0;
   private idPlayer: string | number = 0;
   turnState = false;
+  startTimeout?: NodeJS.Timeout;
 
   constructor(serverUrl: string, userId: string) {
     this.ws = new WebSocket(serverUrl, {
@@ -92,11 +94,19 @@ export class BotClient {
     }
   }
 
+  setAttackResult(data: AttackFeedback): void {
+    if (this.idPlayer !== data.currentPlayer) {
+      this.enemyBoard.attack(data.position.x, data.position.y);
+    }
+  }
+
   handleMessage2(msg: WsMessage): void {
     switch (msg.type) {
       case MSG_TYPES.createGame:
         this.setGameData(msg.data as GameData);
+        // this.startTimeout = setTimeout(() => {
         this.placeShips();
+        // }, 60_000);
         break;
 
       case MSG_TYPES.startGame:
@@ -107,6 +117,9 @@ export class BotClient {
         break;
 
       case MSG_TYPES.attack:
+        this.setAttackResult(msg.data as AttackFeedback);
+        break;
+
       case MSG_TYPES.finish:
       case MSG_TYPES.diconnect:
       case MSG_TYPES.updateRoom:
