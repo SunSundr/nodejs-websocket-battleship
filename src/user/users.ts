@@ -20,6 +20,14 @@ export class Users {
     return this.users.get(ws);
   }
 
+  findUser(userId: string): User | undefined {
+    for (const user of this.users.values()) {
+      if (user.id === userId) return user;
+    }
+
+    return undefined;
+  }
+
   delete(ws: WebSocket): void {
     this.users.delete(ws);
   }
@@ -42,5 +50,10 @@ export class Users {
     }
 
     return { ...msg, data: regData };
+  }
+
+  addBotUser(ws: WebSocket): void {
+    const user = new User('Bot', ws);
+    this.users.set(ws, user);
   }
 }

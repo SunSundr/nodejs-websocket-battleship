@@ -1,14 +1,16 @@
-import { WebSocket, WebSocketServer, RawData } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { removeFromArray } from '../utils/array';
 import { Users } from '../user/users';
 import { User } from '../user/user';
 import { UserDb } from '../db/userDb';
 import { Room } from '../game/room';
+import { parseWsMessage, stringifyWsMessage } from './wsMessage';
 import { getErrorMessage } from '../utils/error';
 import { printCommand, printError, printInfo } from '../utils/print';
 import { MSG_TYPES, WsMessage, RegData } from './types';
 import { RoomIndex, GameData, ShipsData, AttackData, HitType, Point } from '../game/types';
-import { CMD_PREFIX } from '../config';
+import { BotClient } from '../bot/botClient';
+import { CMD_PREFIX, WSS_PORT } from '../config';
 // import { RoomData } from '../game/types';
 // import { uuid4 } from '../utils/uuid';
 
@@ -16,6 +18,7 @@ export class WsServer {
   private readonly users: Users;
   private readonly connections: WebSocket[] = [];
   private readonly rooms = new Map<string | number, Room>();
+  private readonly bots: BotClient[] = [];
 
   constructor(
     private readonly userDb: UserDb,
@@ -24,13 +27,21 @@ export class WsServer {
   ) {
     this.users = new Users(this.userDb);
 
-    wss.on('connection', (ws, _req) => {
+    wss.on('connection', (ws, req) => {
       console.log('WebSocket: new connection...');
       this.connections.push(ws);
+      const isBot = req.headers['user-agent'] === 'Bot';
+      if (isBot) {
+        const userId = req.headers['x-user-id'];
+        if (typeof userId === 'string') {
+          const user = this.users.findUser(userId);
+          if (user) this.startGameWithBot(user, ws);
+        }
+      }
 
       ws.on('message', (message) => {
         try {
-          this.handleMessage(ws, this.getWsMessage(message));
+          this.handleMessage(ws, parseWsMessage(message));
         } catch (error) {
           const msg = getErrorMessage(error);
           printError(`JSON parsing error: ${msg}`);
@@ -71,26 +82,9 @@ export class WsServer {
     wss.on('listening', () => console.log(`WebSocketServer listening on port ${this.port}`));
   }
 
-  getWsMessage(msg: RawData): WsMessage {
-    const wsMsg = JSON.parse(msg.toString()) as WsMessage;
-    if (typeof wsMsg.data === 'string' && wsMsg.data.length) {
-      try {
-        wsMsg.data = JSON.parse(wsMsg.data);
-      } catch {
-        // nothing
-      }
-    }
-
-    return wsMsg;
-  }
-
-  stringifyWsMessage(msg: WsMessage): string {
-    return JSON.stringify({ ...msg, data: JSON.stringify(msg.data) });
-  }
-
   registration(ws: WebSocket, msg: WsMessage): boolean {
     const result = this.users.addUser(ws, msg);
-    ws.send(this.stringifyWsMessage(result));
+    ws.send(stringifyWsMessage(result));
     const error = (result.data as RegData)?.errorText;
     if (error) {
       printError(error);
@@ -117,7 +111,7 @@ export class WsServer {
         wins: user.winsCount,
       }));
 
-    const winnersStr = this.stringifyWsMessage({
+    const winnersStr = stringifyWsMessage({
       type: MSG_TYPES.updateWinners,
       data,
       id: 0,
@@ -136,6 +130,20 @@ export class WsServer {
     }
   }
 
+  startBot(ws: WebSocket): void {
+    const user = this.users.getUser(ws);
+    if (user) {
+      const bot = new BotClient(`ws://localhost:${WSS_PORT}/bot`, user.id);
+      this.bots.push(bot);
+    }
+  }
+
+  startGameWithBot(user: User, botWs: WebSocket): void {
+    const room = Room.create(this.users.getUser(user.connection), this.rooms);
+    this.users.addBotUser(botWs);
+    this.addUserToRoom(botWs, room.id);
+  }
+
   createRoom(ws: WebSocket): void {
     Room.create(this.users.getUser(ws), this.rooms);
   }
@@ -148,7 +156,7 @@ export class WsServer {
         roomUsers: room.roomUsers(),
       }));
 
-    const roomsStr = this.stringifyWsMessage({
+    const roomsStr = stringifyWsMessage({
       type: MSG_TYPES.updateRoom,
       data,
       id: 0,
@@ -173,7 +181,7 @@ export class WsServer {
   startGame(gameId: string, user1: User, user2: User): void {
     [user1, user2].forEach((user) => {
       user.connection.send(
-        this.stringifyWsMessage({
+        stringifyWsMessage({
           type: MSG_TYPES.startGame,
           data: {
             ships: user.gameBoard(gameId).ships,
@@ -185,7 +193,7 @@ export class WsServer {
     });
     printCommand(
       MSG_TYPES.startGame,
-      `Start of a game between ${user1.name} (ID '${user1.id}') and ${user1.name} (ID '${user2.id}').`
+      `Start of a game between ${user1.name} (ID '${user1.id}') and ${user2.name} (ID '${user2.id}').`
     );
     printInfo('The first player to submit their ship positions goes first.');
   }
@@ -252,7 +260,7 @@ export class WsServer {
                 idPlayer: usr.id,
               };
               uws.send(
-                this.stringifyWsMessage({
+                stringifyWsMessage({
                   ...msg,
                   data,
                 })
@@ -280,7 +288,7 @@ export class WsServer {
   turn(room: Room, toggleTurn = true): void {
     room.allPlayers().forEach((user) => {
       user.connection.send(
-        this.stringifyWsMessage({
+        stringifyWsMessage({
           type: MSG_TYPES.turn,
           data: {
             currentPlayer: room.nextTurn(toggleTurn),
@@ -305,13 +313,20 @@ export class WsServer {
         ) as { x: number; y: number };
         const result = board.attack(x, y);
         const turnPoints = [{ x, y }];
+        if (user.name !== 'Bot' && attackData.x) {
+          console.log([turnPoints[0].x, turnPoints[0].y], [result.point.x, result.point.y]);
+        }
+
         if (result.status === HitType.repeat) {
-          let countRepeat = 0;
-          const interval = setInterval(() => {
-            this.attackFeedback([ws], enemy.id, turnPoints, HitType.miss);
-            if (countRepeat === 2) clearInterval(interval);
-            countRepeat++;
-          }, 600);
+          // let countRepeat = 0;
+          // const interval = setInterval(() => {
+          //   this.attackFeedback([ws], enemy.id, turnPoints, HitType.miss);
+          //   if (countRepeat === 2) clearInterval(interval);
+          //   countRepeat++;
+          // }, 600);
+
+          console.log('REPEAT');
+          this.turn(room, false);
 
           return;
         }
@@ -343,7 +358,7 @@ export class WsServer {
     wsa.forEach((ws) => {
       points.forEach((point) => {
         ws.send(
-          this.stringifyWsMessage({
+          stringifyWsMessage({
             type: MSG_TYPES.attack,
             data: {
               position: { ...point },
@@ -362,7 +377,7 @@ export class WsServer {
     if (!userWinner || !userLoser) return;
     [userWinner, userLoser].forEach((user) => {
       user.connection.send(
-        this.stringifyWsMessage({
+        stringifyWsMessage({
           type: MSG_TYPES.finish,
           data: { winPlayer: userLoser.id },
           id: 0,
@@ -382,7 +397,7 @@ export class WsServer {
 
   diconnect(ws: WebSocket): void {
     ws.send(
-      this.stringifyWsMessage({
+      stringifyWsMessage({
         type: MSG_TYPES.diconnect,
         data: '',
         id: 0,
@@ -419,6 +434,10 @@ export class WsServer {
         this.attack(ws, msg.data as AttackData);
         break;
 
+      case MSG_TYPES.single_play:
+        this.startBot(ws);
+        break;
+
       default:
         printError('Unknown message type:', msg.type);
         this.sendError(ws, `Unknown message type: ${msg.type}`);
@@ -427,7 +446,7 @@ export class WsServer {
 
   sendError(ws: WebSocket, msg: string): void {
     ws.send(
-      this.stringifyWsMessage({
+      stringifyWsMessage({
         type: `${MSG_TYPES.error}: "${msg}"` as MSG_TYPES,
         data: '', // not used
         id: 0,

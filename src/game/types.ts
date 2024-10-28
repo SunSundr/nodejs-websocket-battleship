@@ -63,6 +63,7 @@ export interface StartShipsData {
 }
 
 export interface AttackResult {
+  point: Point;
   status: HitType;
   aroundCells?: Point[];
   shipCells?: Point[];

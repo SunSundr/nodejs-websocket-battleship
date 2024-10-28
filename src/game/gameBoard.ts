@@ -1,21 +1,24 @@
-import { CELLTYPE, ClientShips, ShipType, Point, HitType, AttackResult } from './types';
+import { CELLTYPE, ClientShips, Point, HitType, AttackResult } from './types';
+import { retrieveShips } from './retrieveShips';
+import { autoPlaceShips } from './autoPlaceShips';
 import { type User } from '../user/user';
 import { type Room } from './room';
 
-type CellState = number;
-const BOARDSIZE = 10;
+export type CellState = number;
+export const BOARDSIZE = 10;
+
+export function generateEmptyBoard(): CellState[][] {
+  return Array.from({ length: BOARDSIZE }, () => Array(BOARDSIZE).fill(CELLTYPE.EMPTY));
+}
 
 export class GameBoard {
   ships: ClientShips[] = [];
   readyState = false;
   private unsunksCount = 0;
   private lastShotPoint?: Point;
-  // private readonly lastShotPoints: Point[] = [];
-  private readonly board: CellState[][] = Array.from({ length: BOARDSIZE }, () =>
-    Array(BOARDSIZE).fill(CELLTYPE.EMPTY)
-  );
+  private readonly board: CellState[][] = generateEmptyBoard();
 
-  constructor(private readonly user: User) {}
+  constructor(private readonly user?: User) {}
 
   addShips(ships: ClientShips[], room: Room): void {
     this.ships = ships;
@@ -33,7 +36,7 @@ export class GameBoard {
         }
       }
     });
-    room.setNextTurn(this.user);
+    if (this.user) room.setNextTurn(this.user);
   }
 
   finish(): boolean {
@@ -158,15 +161,22 @@ export class GameBoard {
     return targetCell;
   }
 
+  randomAttack(): AttackResult {
+    const point = this.randomAttackPoint();
+
+    return this.attack(point.x, point.y);
+  }
+
   attack(x: number, y: number): AttackResult {
+    const point = { x, y };
     if (this.board[y][x] === CELLTYPE.HIT || this.board[y][x] === CELLTYPE.SHIP_HIT) {
-      return { status: HitType.repeat };
+      return { point, status: HitType.repeat };
     }
 
     if (this.board[y][x] === CELLTYPE.EMPTY) {
       this.board[y][x] = CELLTYPE.HIT;
 
-      return { status: HitType.miss };
+      return { point, status: HitType.miss };
     }
 
     if (this.board[y][x] === CELLTYPE.SHIP) {
@@ -179,6 +189,7 @@ export class GameBoard {
         const aroundCells = this.markSurroundingsAsHit(x, y);
 
         return {
+          point,
           status: HitType.killed,
           aroundCells,
           shipCells: shipCells.cells,
@@ -188,58 +199,19 @@ export class GameBoard {
 
       this.lastShotPoint = { x, y };
 
-      return { status: HitType.shot, aroundCells: [] };
+      return { point, status: HitType.shot, aroundCells: [] };
     }
 
-    return { status: HitType.miss };
+    return { point, status: HitType.miss };
+  }
+
+  autoPlaceShips(): void {
+    if (this.readyState) return;
+    autoPlaceShips(this.board);
+    this.readyState = true;
   }
 
   retrieveShips(): ClientShips[] {
-    const ships: ClientShips[] = [];
-    const visited = Array.from({ length: BOARDSIZE }, () => Array(BOARDSIZE).fill(false));
-    const isCellShip = (cell: number) => cell === CELLTYPE.SHIP || cell === CELLTYPE.SHIP_HIT;
-
-    for (let y = 0; y < BOARDSIZE; y++) {
-      for (let x = 0; x < BOARDSIZE; x++) {
-        if (isCellShip(this.board[y][x]) && !visited[y][x]) {
-          let length = 1;
-          let direction = true;
-
-          if (x + 1 < BOARDSIZE && isCellShip(this.board[y][x + 1])) {
-            direction = false;
-            while (x + length < BOARDSIZE && isCellShip(this.board[y][x + length])) {
-              visited[y][x + length] = true;
-              length++;
-            }
-          } else if (y + 1 < BOARDSIZE && isCellShip(this.board[y + 1][x])) {
-            direction = true;
-            while (y + length < BOARDSIZE && isCellShip(this.board[y + length][x])) {
-              visited[y + length][x] = true;
-              length++;
-            }
-          }
-
-          ships.push({ position: { x, y }, direction, type: this.getShipType(length), length });
-          visited[y][x] = true;
-        }
-      }
-    }
-
-    return ships;
-  }
-
-  getShipType(length: number): ShipType {
-    switch (length) {
-      case 1:
-        return ShipType.small;
-      case 2:
-        return ShipType.medium;
-      case 3:
-        return ShipType.large;
-      case 4:
-        return ShipType.huge;
-      default:
-        return ShipType.unknown;
-    }
+    return retrieveShips(this.board);
   }
 }

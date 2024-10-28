@@ -26,6 +26,7 @@ export enum MSG_TYPES {
   bot = 'single_play',
   error = 'server_error',
   info = 'server_info',
+  single_play = 'single_play',
 }
 
 export interface RegData {

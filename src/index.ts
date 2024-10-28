@@ -1,7 +1,5 @@
 import { App } from './app/app';
-
-const HTTP_PORT = 8181;
-const WSS_PORT = 3000;
+import { HTTP_PORT, WSS_PORT } from './config';
 
 const app = new App(HTTP_PORT, WSS_PORT);
 app.start();
