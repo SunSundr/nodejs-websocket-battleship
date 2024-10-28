@@ -12,6 +12,7 @@ export class UserDb {
     this.dbPath = path.join(__dirname, 'db.json');
     if (loadFromFile) {
       try {
+        if (!fs.existsSync(this.dbPath)) fs.writeFileSync(this.dbPath, '{}');
         const data = fs.readFileSync(this.dbPath, 'utf-8');
         this.db = JSON.parse(data);
       } catch (err) {

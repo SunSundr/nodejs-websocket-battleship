@@ -1,11 +1,9 @@
-import { CELLTYPE, ClientShips, Point, HitType, AttackResult } from './types';
+import { CELLTYPE, ClientShips, Point, HitType, AttackResult, CellState } from './types';
 import { retrieveShips } from './retrieveShips';
 import { autoPlaceShips } from './autoPlaceShips';
 import { type User } from '../user/user';
 import { type Room } from './room';
-
-export type CellState = number;
-export const BOARDSIZE = 10;
+import { BOARDSIZE } from '../config';
 
 export function generateEmptyBoard(): CellState[][] {
   return Array.from({ length: BOARDSIZE }, () => Array(BOARDSIZE).fill(CELLTYPE.EMPTY));
@@ -156,6 +154,7 @@ export class GameBoard {
       }
 
       targetCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      if (!targetCell) targetCell = { x: 0, y: 0 };
     }
 
     return targetCell;

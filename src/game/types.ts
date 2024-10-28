@@ -20,6 +20,8 @@ export enum HitType {
   repeat = 'repeat',
 }
 
+export type CellState = number;
+
 export interface RoomUsers {
   name: string;
   index: number | string;

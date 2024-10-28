@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import { GameBoard } from '../game/gameBoard';
-import { GameData, AttackFeedback } from '../game/types';
+import { GameData } from '../game/types';
 import { parseWsMessage, stringifyWsMessage } from '../ws_server/wsMessage';
 import { MSG_TYPES, WsMessage, TurnData } from '../ws_server/types';
 import { printError } from '../utils/print';
@@ -41,6 +41,10 @@ export class BotClient {
     });
   }
 
+  private delay(): number {
+    return Math.floor(Math.random() * (900 - 400 + 1)) + 400;
+  }
+
   private sendMessage(msg: WsMessage) {
     this.ws.send(stringifyWsMessage(msg));
   }
@@ -66,10 +70,12 @@ export class BotClient {
 
   toggleTurn(data: TurnData): void {
     this.turnState = this.idPlayer === data.currentPlayer;
-    this.attack();
+    setTimeout(() => {
+      this.attack();
+    }, this.delay());
   }
 
-  attack(data?: AttackFeedback): void {
+  attack(): void {
     if (this.turnState) {
       const result = this.enemyBoard.randomAttack();
       this.sendMessage({
@@ -83,8 +89,6 @@ export class BotClient {
         },
         id: 0,
       });
-    } else if (data) {
-      this.myBoard.attack(data.position.x, data.position.y);
     }
   }
 
@@ -103,15 +107,10 @@ export class BotClient {
         break;
 
       case MSG_TYPES.attack:
-        break;
-
       case MSG_TYPES.finish:
-        break;
-
       case MSG_TYPES.diconnect:
-        break;
-
       case MSG_TYPES.updateRoom:
+      case MSG_TYPES.updateWinners:
         break;
 
       default:

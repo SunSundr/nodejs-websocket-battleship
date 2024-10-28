@@ -1,11 +1,12 @@
 const path = require('path');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const nodeExternals = require('webpack-node-externals');
 const isProduction = process.env.NODE_ENV == 'production';
 
 const config = {
     entry: './src/index.ts',
     output: {
-        filename: 'CRUD-API-app.js',
+        filename: 'battleship.js',
         path: path.resolve(__dirname, 'build'),
     },
     plugins: [
@@ -24,6 +25,12 @@ const config = {
     resolve: {
         extensions: ['.ts', '.js'],
     },
+    externals: [
+        nodeExternals({
+            allowlist: [/\.(css|less|scss|json|ts|js|node_modules)/],
+        }),
+        { bufferutil: 'bufferutil', 'utf-8-validate': 'utf-8-validate' },
+    ],
     target: 'node',
     stats: {
         all: false,

@@ -1,5 +1,5 @@
-import { CELLTYPE, ClientShips } from './types';
-import { CellState, BOARDSIZE } from './gameBoard';
+import { CELLTYPE, ClientShips, CellState } from './types';
+import { BOARDSIZE } from '../config';
 import { getShipType } from './shipType';
 
 export function retrieveShips(board: CellState[][]): ClientShips[] {

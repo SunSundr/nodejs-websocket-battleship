@@ -313,9 +313,9 @@ export class WsServer {
         ) as { x: number; y: number };
         const result = board.attack(x, y);
         const turnPoints = [{ x, y }];
-        if (user.name !== 'Bot' && attackData.x) {
-          console.log([turnPoints[0].x, turnPoints[0].y], [result.point.x, result.point.y]);
-        }
+        // if (user.name !== 'Bot') {
+        //   console.log([turnPoints[0].x, turnPoints[0].y], [result.point.x, result.point.y]);
+        // }
 
         if (result.status === HitType.repeat) {
           // let countRepeat = 0;
@@ -325,10 +325,10 @@ export class WsServer {
           //   countRepeat++;
           // }, 600);
 
-          console.log('REPEAT');
-          this.turn(room, false);
+          console.log('[REPEAT]', `Click on [${attackData.x}, ${attackData.y}]`);
+          // this.turn(room, false);
 
-          return;
+          // return;
         }
 
         if (result.aroundCells) {
@@ -351,6 +351,8 @@ export class WsServer {
 
         this.turn(room, false);
       }
+    } else if (attackData.x) {
+      console.log('[IGNORE]', `Click on [${attackData.x}, ${attackData.y}]`);
     }
   }
 
@@ -406,8 +408,6 @@ export class WsServer {
   }
 
   handleMessage(ws: WebSocket, msg: WsMessage): void {
-    // console.log('>> ', msg);
-
     switch (msg.type) {
       case MSG_TYPES.registration:
         if (this.registration(ws, msg)) {

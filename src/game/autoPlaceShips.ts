@@ -1,5 +1,5 @@
-import { CELLTYPE } from './types';
-import { CellState, BOARDSIZE } from './gameBoard';
+import { CELLTYPE, CellState } from './types';
+import { BOARDSIZE } from '../config';
 
 function isValidPlacement(
   board: CellState[][],
