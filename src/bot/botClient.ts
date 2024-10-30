@@ -163,7 +163,6 @@ export class BotClient {
         break;
 
       case MSG_TYPES.turn:
-        this.ws.close();
         this.toggleTurn(msg.data as TurnData);
         break;
 
