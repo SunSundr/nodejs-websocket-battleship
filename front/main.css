@@ -24,3 +24,51 @@
 button {
     cursor: pointer;
 }
+
+/* body.waiting * { cursor: wait; } */
+
+.no-pointer-events {
+    pointer-events: none !important;
+}
+
+.canvas-cursor-crosshair {
+    cursor: crosshair !important;
+}
+
+.canvas-cursor-wait {
+    cursor: wait !important;
+}
+
+p, h1, button, img {
+    user-select: none;
+}
+
+.overlay-connection-lost {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.message-connection-lost {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 48px;
+    font-weight: bold;
+    color: #a5c2ee;
+    text-align: center;
+    background-color: rgb(200, 200, 210);
+    border: 1px solid black;
+    box-shadow: 0px 0px 20px rgb(32, 32, 32);
+    color: black;
+    padding: 24px;
+    border-radius: 10px;
+    user-select: none;
+}

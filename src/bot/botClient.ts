@@ -1,11 +1,19 @@
+import { styleText } from 'node:util';
 import WebSocket from 'ws';
 import { GameBoard } from '../game/gameBoard';
-import { GameData, AttackFeedback } from '../game/types';
-// import { GameData, HitType } from '../game/types';
+import { GameData, AttackFeedback, Point, HitType } from '../game/types';
 import { parseWsMessage, stringifyWsMessage } from '../ws_server/wsMessage';
 import { MSG_TYPES, WsMessage, TurnData } from '../ws_server/types';
-import { printError } from '../utils/print';
+import { printError, printLog } from '../utils/print';
 import { getErrorMessage } from '../utils/error';
+
+interface FindShip {
+  firstPosition?: Point;
+  positions: Point[];
+  direction: boolean | null; // false - horizontal; true - vertical; null - unknown
+}
+
+const DELAY_LIMITS = { min: 400, max: 800 };
 
 export class BotClient {
   readonly ws: WebSocket;
@@ -14,7 +22,8 @@ export class BotClient {
   private idGame: string | number = 0;
   private idPlayer: string | number = 0;
   turnState = false;
-  startTimeout?: NodeJS.Timeout;
+  private shipShot?: FindShip;
+  private isFinish = false;
 
   constructor(serverUrl: string, userId: string) {
     this.ws = new WebSocket(serverUrl, {
@@ -22,12 +31,15 @@ export class BotClient {
     });
 
     this.ws.on('open', () => {
-      console.log(`Bot connected to server ${serverUrl}`);
+      printLog(
+        styleText('bgCyanBright', ` Bot connected to server ${styleText('italic', serverUrl)} `),
+        '\uFEFF'
+      );
     });
 
     this.ws.on('message', (message) => {
       try {
-        this.handleMessage2(parseWsMessage(message));
+        this.handleMessage(parseWsMessage(message));
       } catch (error) {
         const msg = getErrorMessage(error);
         printError(`JSON parsing error: ${msg}`);
@@ -35,16 +47,26 @@ export class BotClient {
     });
 
     this.ws.on('close', () => {
-      console.log(`Bot disconnected from server ${serverUrl}`);
+      printLog(
+        styleText(
+          this.isFinish ? 'bgGray' : 'bgRedBright',
+          ` Bot disconnected from server ${styleText('italic', serverUrl)} `
+        ),
+        '\uFEFF'
+      );
     });
 
     this.ws.on('error', (err) => {
-      printError('Bot WebSocket error:', err.message);
+      printError(styleText('bgRed', 'Bot WebSocket error:'), err.message);
     });
   }
 
+  static new(...args: [string, string]): BotClient {
+    return new BotClient(...args);
+  }
+
   private delay(): number {
-    return Math.floor(Math.random() * (900 - 400 + 1)) + 400;
+    return Math.floor(Math.random() * (DELAY_LIMITS.max - DELAY_LIMITS.min + 1)) + DELAY_LIMITS.min;
   }
 
   private sendMessage(msg: WsMessage) {
@@ -77,10 +99,9 @@ export class BotClient {
     }, this.delay());
   }
 
-  attack(): void {
+  attack(errPoint?: Point): void {
     if (this.turnState) {
-      // const result = this.enemyBoard.randomAttack();
-      const result = this.enemyBoard.randomAttackPoint();
+      const result = errPoint || this.findShipPoint();
       this.sendMessage({
         type: MSG_TYPES.attack,
         data: {
@@ -95,13 +116,41 @@ export class BotClient {
     }
   }
 
+  findShipPoint(): Point {
+    if (this.shipShot) {
+      for (const pt of this.shipShot.positions) {
+        const point = this.enemyBoard.findClosestPoint(pt, this.shipShot.direction);
+        if (point) return point;
+      }
+    }
+
+    return this.enemyBoard.randomAttackPointBot();
+  }
+
   setAttackResult(data: AttackFeedback): void {
     if (this.idPlayer === data.currentPlayer) {
-      this.enemyBoard.setState(data.position.x, data.position.y, data.status);
+      const { x, y } = data.position;
+      const { status } = data;
+      this.enemyBoard.setState(x, y, status);
+      if (status === HitType.shot) {
+        const point: Point = { x, y };
+        if (this.shipShot) {
+          this.shipShot.positions.push(point);
+          if (this.shipShot.direction === null)
+            this.shipShot.direction = this.shipShot.positions[0].x === point.x;
+        } else {
+          this.shipShot = {
+            positions: [point],
+            direction: null,
+          };
+        }
+      } else if (status === HitType.killed) {
+        this.shipShot = undefined;
+      }
     }
   }
 
-  handleMessage2(msg: WsMessage): void {
+  handleMessage(msg: WsMessage): void {
     switch (msg.type) {
       case MSG_TYPES.createGame:
         this.setGameData(msg.data as GameData);
@@ -114,6 +163,7 @@ export class BotClient {
         break;
 
       case MSG_TYPES.turn:
+        this.ws.close();
         this.toggleTurn(msg.data as TurnData);
         break;
 
@@ -123,8 +173,17 @@ export class BotClient {
 
       case MSG_TYPES.finish:
       case MSG_TYPES.diconnect:
+        this.isFinish = msg.type === MSG_TYPES.finish;
+        this.ws.close();
+        break;
+
       case MSG_TYPES.updateRoom:
       case MSG_TYPES.updateWinners:
+        break;
+
+      case MSG_TYPES.repeat:
+        // algorithm error / never:
+        this.attack(this.enemyBoard.randomAttackPoint());
         break;
 
       default:

@@ -3,6 +3,7 @@ import path from 'node:path';
 import * as crypto from 'crypto';
 import { UserData, DbObj } from './types';
 import { RegData } from '../ws_server/types';
+import { printLog, printError } from '../utils/print';
 
 export class UserDb {
   private readonly db: DbObj = {};
@@ -16,11 +17,7 @@ export class UserDb {
         const data = fs.readFileSync(this.dbPath, 'utf-8');
         this.db = JSON.parse(data);
       } catch (err) {
-        console.error(
-          '[Error]',
-          'Failed to load database file:',
-          err instanceof Error ? err.message : err
-        );
+        printError(`Failed to load database file: ${err instanceof Error ? err.message : err}`);
         this.db = {};
       }
     } else {
@@ -69,7 +66,7 @@ export class UserDb {
   saveDb(): void {
     const data = JSON.stringify(this.db);
     fs.writeFileSync(this.dbPath, data);
-    console.log('[UserDb]', 'The user database has been successfully saved');
+    printLog('[UserDb]', 'The user database has been successfully saved.');
   }
 
   regDataOf(regData: RegData, userOrError: UserData | Error): RegData {

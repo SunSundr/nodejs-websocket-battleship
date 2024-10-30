@@ -20,8 +20,9 @@ export class App {
   start(): void {
     this.server.listen(this.httpPort, () => {
       console.log(
-        `Start static http server on the ${styleText('yellow', String(this.httpPort))} port`
+        `Static HTTP server is running on port ${styleText('yellow', String(this.httpPort))}`
       );
+      console.log(styleText('cyan', styleText('italic', 'http://localhost:8181/')));
       console.log('-'.repeat(50));
     });
   }

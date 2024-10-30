@@ -19,6 +19,7 @@ export enum MSG_TYPES {
   addShips = 'add_ships',
   startGame = 'start_game',
   attack = 'attack',
+  repeat = 'repeat',
   randomAttack = 'randomAttack',
   turn = 'turn',
   finish = 'finish',

@@ -7,7 +7,7 @@ import { UserDb } from '../db/userDb';
 import { Room } from '../game/room';
 import { parseWsMessage, stringifyWsMessage } from './wsMessage';
 import { getErrorMessage } from '../utils/error';
-import { printCommand, printError, printInfo, formatID } from '../utils/print';
+import { printCommand, printError, printInfo, printLog, formatID } from '../utils/print';
 import { MSG_TYPES, WsMessage, RegData } from './types';
 import { RoomIndex, GameData, ShipsData, AttackData, HitType, Point } from '../game/types';
 import { BotClient } from '../bot/botClient';
@@ -17,7 +17,6 @@ export class WsServer {
   private readonly users: Users;
   private readonly connections: WebSocket[] = [];
   private readonly rooms = new Map<string | number, Room>();
-  private readonly bots: BotClient[] = [];
 
   constructor(
     private readonly userDb: UserDb,
@@ -27,14 +26,33 @@ export class WsServer {
     this.users = new Users(this.userDb);
 
     wss.on('connection', (ws, req) => {
-      console.log('WebSocket: new connection...');
+      if (req.url === '/reconnect') {
+        printLog('\u2705 WebSocket: new test connection.');
+      } else {
+        printLog('\uD83C\uDF10 WebSocket: new connection.');
+      }
+
       this.connections.push(ws);
       const isBot = req.headers['user-agent'] === 'Bot';
       if (isBot) {
+        let botError: string | null = null;
         const userId = req.headers['x-user-id'];
         if (typeof userId === 'string') {
           const user = this.users.findUser(userId);
-          if (user) this.startGameWithBot(user, ws);
+          if (user) {
+            this.startGameWithBot(user, ws);
+          } else {
+            botError = 'A matching user for the bot was not found. The user is probably offline.';
+          }
+        } else {
+          botError = 'Connection with unknown bot closed';
+        }
+
+        if (botError) {
+          ws.close();
+          printError(botError);
+
+          return;
         }
       }
 
@@ -53,10 +71,14 @@ export class WsServer {
         user?.rooms.forEach((room) => {
           if (room.isFull()) {
             const user2 = room.anotherPlayer(user);
-            if (room.botRoom) {
-              user2?.connection.close();
+            if (room.isBotRoom()) {
+              room.botConnection?.close();
+              if (user2) this.diconnect(user2.connection);
             } else if (user2) {
               this.diconnect(user2.connection);
+              user2.addWins(1);
+              this.printWinner(user2);
+              this.updateWinners();
             }
           }
 
@@ -65,12 +87,16 @@ export class WsServer {
         removeFromArray(this.connections, ws);
         this.updateRooms(ws);
         this.users.delete(ws);
-        console.log(
-          CMD_PREFIX.info,
-          user
-            ? `User ${user.name} ${formatID(user.id)} disconnected.`
-            : 'WebSocket connection closed.'
-        );
+        if (req.url !== '/reconnect') {
+          printLog(
+            '\u26d4',
+            user
+              ? `User ${user.name} ${formatID(user.id)} disconnected.`
+              : 'WebSocket: connection closed.'
+          );
+        } else {
+          printLog('\u274E', 'WebSocket: test connection closed.');
+        }
       });
 
       ws.on('error', (err) => {
@@ -78,12 +104,10 @@ export class WsServer {
       });
     });
 
-    wss.on('error', (err) =>
-      console.log(CMD_PREFIX.error, 'WebSocketServer error', getErrorMessage(err))
-    );
-    wss.on('close', () => console.log(CMD_PREFIX.warn, 'WebSocketServer closed')); // restart ?
+    wss.on('error', (err) => printError('WebSocketServer error', getErrorMessage(err)));
+    wss.on('close', () => printLog(CMD_PREFIX.warn, 'WebSocketServer closed')); // restart ?
     wss.on('listening', () => {
-      console.log(`\nWebSocketServer listening on port ${styleText('yellow', String(this.port))}`);
+      printLog(`\nWebSocketServer listening on port ${styleText('yellow', String(this.port))}`);
     });
   }
 
@@ -131,21 +155,22 @@ export class WsServer {
       );
     } else {
       this.connections.forEach((uws) => uws.send(winnersStr));
-      printCommand(MSG_TYPES.updateRoom, 'All connections have been notified of the winners.');
+      printCommand(MSG_TYPES.updateWinners, 'All connections have been notified of the winners.');
     }
   }
 
   startBot(ws: WebSocket): void {
     const user = this.users.getUser(ws);
     if (user) {
-      const bot = new BotClient(`ws://localhost:${WSS_PORT}/bot`, user.id);
-      this.bots.push(bot);
+      BotClient.new(`ws://localhost:${WSS_PORT}/bot`, user.id);
+    } else {
+      printError('A matching user for the bot was not found.');
     }
   }
 
   startGameWithBot(user: User, botWs: WebSocket): void {
     const room = Room.create(this.users.getUser(user.connection), this.rooms);
-    room.botRoom = true;
+    room.botConnection = botWs;
     this.users.addBotUser(botWs);
     this.addUserToRoom(botWs, room.id);
   }
@@ -218,8 +243,8 @@ export class WsServer {
         );
         const user2 = room.getPlayer(shipsData.indexPlayer); // or const user2 = room.anotherPlayer(user1);
         if (user2 && user2.gameBoard(shipsData.gameId).readyState) {
-          if (room.botRoom) room.setNextTurn(user2);
-          this.startGame(shipsData.gameId, user1, user2, !room.botRoom);
+          if (room.isBotRoom()) room.setNextTurn(user2);
+          this.startGame(shipsData.gameId, user1, user2, !room.isBotRoom());
           this.turn(room, false);
         } else {
           room.setNextTurn(user1);
@@ -315,29 +340,40 @@ export class WsServer {
       const enemy = room.anotherPlayer(user);
       if (enemy) {
         const board = enemy.gameBoard(attackData.gameId);
-        const { x, y } = (
-          attackData.x && attackData.y ? attackData : board.randomAttackPoint()
-        ) as { x: number; y: number };
+        const isRandom = attackData.x === undefined && attackData.y === undefined;
+        const { x, y } = (isRandom ? board.randomAttackPoint() : attackData) as {
+          x: number;
+          y: number;
+        };
         const result = board.attack(x, y);
         const turnPoints = [{ x, y }];
-        // if (user.name !== 'Bot') {
-        //   console.log([turnPoints[0].x, turnPoints[0].y], [result.point.x, result.point.y]);
-        // }
 
         if (result.status === HitType.repeat) {
-          // let countRepeat = 0;
-          // const interval = setInterval(() => {
-          //   this.attackFeedback([ws], enemy.id, turnPoints, HitType.miss);
-          //   if (countRepeat === 2) clearInterval(interval);
-          //   countRepeat++;
-          // }, 600);
-          console.log(CMD_PREFIX.repeat, `Click on [${attackData.x}, ${attackData.y}]`);
-          // this.turn(room, false);
+          this.repeatFeedback(ws, enemy.id, turnPoints[0], HitType.repeat, result.repeatStatus);
+          printLog(
+            CMD_PREFIX.repeat,
+            `Click on [${attackData.x}, ${attackData.y}] - ${user.name} ${formatID(user.id)}`
+          );
 
           return;
         }
 
-        printCommand(MSG_TYPES.attack, `${result.status} - ${user.name} ${formatID(user.id)}`);
+        const styleResult = (res: HitType): string => {
+          const msg = ` ${res} `;
+          switch (res) {
+            case HitType.killed:
+              return styleText('bgGreen', msg);
+            case HitType.shot:
+              return styleText('bgCyanBright', msg);
+            default:
+              return styleText('bgGrey', msg);
+          }
+        };
+
+        printCommand(
+          isRandom ? MSG_TYPES.randomAttack : MSG_TYPES.attack,
+          `${styleResult(result.status)} - ${user.name} ${formatID(user.id)}`
+        );
 
         if (result.aroundCells) {
           const hitType = result.shipCells ? HitType.killed : HitType.shot;
@@ -360,7 +396,7 @@ export class WsServer {
         this.turn(room, false);
       }
     } else if (attackData.x) {
-      console.log(CMD_PREFIX.ignore, `Click on [${attackData.x}, ${attackData.y}]`);
+      printLog(CMD_PREFIX.ignore, `Click on [${attackData.x}, ${attackData.y}]`);
     }
   }
 
@@ -382,6 +418,27 @@ export class WsServer {
     });
   }
 
+  repeatFeedback(
+    ws: WebSocket,
+    userId: string,
+    point: Point,
+    status: HitType,
+    repeatStatus?: HitType
+  ): void {
+    ws.send(
+      stringifyWsMessage({
+        type: MSG_TYPES.repeat,
+        data: {
+          position: { ...point },
+          currentPlayer: userId,
+          status,
+          repeatStatus,
+        },
+        id: 0,
+      })
+    );
+  }
+
   finish(room: Room): void {
     const { userWinner, userLoser } = room.statistic();
     if (!userWinner || !userLoser) return;
@@ -396,13 +453,10 @@ export class WsServer {
       user.rooms.delete(room);
       user.deleteGameBoard(room.id);
     });
-    if (!room.botRoom) userWinner.addWins(1);
+    if (!room.isBotRoom()) userWinner.addWins(1);
     this.rooms.delete(room.id);
     this.updateWinners(userWinner.connection);
-    printCommand(
-      MSG_TYPES.finish,
-      `User ${userWinner.name} (id '${userWinner.id}') is the winner.`
-    );
+    this.printWinner(userWinner);
   }
 
   diconnect(ws: WebSocket): void {
@@ -412,6 +466,13 @@ export class WsServer {
         data: '',
         id: 0,
       })
+    );
+  }
+
+  printWinner(user: User): void {
+    printCommand(
+      MSG_TYPES.finish,
+      styleText('bold', `User ${user.name} ${formatID(user.id)} is the winner!`)
     );
   }
 

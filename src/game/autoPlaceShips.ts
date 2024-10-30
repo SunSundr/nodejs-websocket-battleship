@@ -1,5 +1,5 @@
 import { CELLTYPE, CellState } from './types';
-import { BOARDSIZE } from '../config';
+import { BOARDSIZE, SHIPS } from '../config';
 
 function isValidPlacement(
   board: CellState[][],
@@ -46,14 +46,7 @@ function placeShip(
 }
 
 export function autoPlaceShips(board: CellState[][]): CellState[][] {
-  const ships = [
-    { length: 4, count: 1 },
-    { length: 3, count: 2 },
-    { length: 2, count: 3 },
-    { length: 1, count: 4 },
-  ];
-
-  for (const ship of ships) {
+  for (const ship of SHIPS) {
     for (let i = 0; i < ship.count; i++) {
       let placed = false;
       while (!placed) {

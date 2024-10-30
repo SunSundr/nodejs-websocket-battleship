@@ -18,3 +18,7 @@ export function formatID(id?: string): string {
 
   return styleText('gray', `(ID '${styleText('cyan', id)}')`);
 }
+
+export function printLog(...msg: string[]): void {
+  console.log(...msg);
+}
