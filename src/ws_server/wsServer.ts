@@ -243,7 +243,10 @@ export class WsServer {
         );
         const user2 = room.getPlayer(shipsData.indexPlayer); // or const user2 = room.anotherPlayer(user1);
         if (user2 && user2.gameBoard(shipsData.gameId).readyState) {
-          if (room.isBotRoom()) room.setNextTurn(user2);
+          if (room.isBotRoom() && Date.now() - Number(room.timeStamp) <= 60_000) {
+            room.setNextTurn(user2);
+          }
+
           this.startGame(shipsData.gameId, user1, user2, !room.isBotRoom());
           this.turn(room, false);
         } else {
@@ -283,6 +286,10 @@ export class WsServer {
             id: 0,
           };
           user.rooms.add(room);
+          if (room.isBotRoom() && room.botConnection !== ws) {
+            room.timeStamp = Date.now();
+          }
+
           room.allPlayers().forEach((usr) => {
             usr.addGameBoard(room.gameId());
             const uws = room.anotherPlayer(usr)?.connection;

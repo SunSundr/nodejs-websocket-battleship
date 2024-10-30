@@ -11,6 +11,7 @@ export class Room {
   private gameIds?: string;
   winner?: User;
   botConnection?: WebSocket;
+  timeStamp?: number;
 
   constructor() {
     this.id = uuid4();
