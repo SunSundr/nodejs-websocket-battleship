@@ -2,6 +2,13 @@ export const HTTP_PORT = 8181;
 export const WSS_PORT = 3000;
 export const BOARDSIZE = 10;
 
+export const SHIPS = [
+  { length: 4, count: 1 },
+  { length: 3, count: 2 },
+  { length: 2, count: 3 },
+  { length: 1, count: 4 },
+];
+
 export enum CMD_PREFIX {
   info = '\x1b[36m[i]\x1b[0m', // cyan
   done = '\x1b[32m[Done]\x1b[0m', // green

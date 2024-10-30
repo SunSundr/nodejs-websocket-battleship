@@ -1,9 +1,20 @@
 import { CELLTYPE, ClientShips, Point, HitType, AttackResult, CellState } from './types';
+import { getRandomElement } from '../utils/array';
 import { retrieveShips } from './retrieveShips';
 import { autoPlaceShips } from './autoPlaceShips';
 import { type User } from '../user/user';
 import { type Room } from './room';
 import { BOARDSIZE } from '../config';
+
+interface Direction {
+  dx: number;
+  dy: number;
+}
+
+interface RandomPoint {
+  cell: Point;
+  countEmpty: number;
+}
 
 export function generateEmptyBoard(): CellState[][] {
   return Array.from({ length: BOARDSIZE }, () => Array(BOARDSIZE).fill(CELLTYPE.EMPTY));
@@ -41,6 +52,25 @@ export class GameBoard {
     return this.readyState && this.unsunksCount === 0;
   }
 
+  private getDirections(): Direction[] {
+    return [
+      { dx: 1, dy: 0 }, // right
+      { dx: -1, dy: 0 }, // left
+      { dx: 0, dy: 1 }, // down
+      { dx: 0, dy: -1 }, // up
+    ];
+  }
+
+  private getDirectionsAll(): Direction[] {
+    return [
+      { dx: -1, dy: -1 }, // top left
+      { dx: 1, dy: -1 }, // top right
+      { dx: -1, dy: 1 }, // bottom left
+      { dx: 1, dy: 1 }, // bottom right
+      ...this.getDirections(),
+    ];
+  }
+
   private isShipKilledCells(x: number, y: number): { Killed: boolean; cells: Point[] } {
     const cells = this.getShipCells(x, y);
     const Killed = cells.every((cell) => this.board[cell.y][cell.x] === CELLTYPE.SHIP_HIT);
@@ -50,12 +80,7 @@ export class GameBoard {
 
   private getShipCells(x: number, y: number): Point[] {
     const shipCells: Point[] = [{ x, y }];
-    const directions = [
-      { dx: 1, dy: 0 }, // right
-      { dx: -1, dy: 0 }, // left
-      { dx: 0, dy: 1 }, // down
-      { dx: 0, dy: -1 }, // up
-    ];
+    const directions = this.getDirections();
 
     for (const { dx, dy } of directions) {
       let posX = x + dx;
@@ -80,16 +105,7 @@ export class GameBoard {
   private markSurroundingsAsHit(x: number, y: number, all = true): Point[] {
     const affectedCells: Point[] = [];
     const shipCells = this.getShipCells(x, y);
-    const directions = [
-      { dx: -1, dy: -1 }, // top left
-      { dx: 0, dy: -1 }, // top
-      { dx: 1, dy: -1 }, // top right
-      { dx: -1, dy: 0 }, // left
-      { dx: 1, dy: 0 }, // right
-      { dx: -1, dy: 1 }, // bottom left
-      { dx: 0, dy: 1 }, // bottom
-      { dx: 1, dy: 1 }, // bottom right
-    ];
+    const directions = this.getDirectionsAll();
 
     for (const cell of shipCells) {
       for (const { dx, dy } of directions) {
@@ -113,51 +129,117 @@ export class GameBoard {
     return affectedCells;
   }
 
-  randomAttackPoint(): Point {
-    const directions = [
-      // { dx: -1, dy: -1 }, // top left
-      { dx: 0, dy: -1 }, // top
-      // { dx: 1, dy: -1 }, // top right
-      { dx: -1, dy: 0 }, // left
-      { dx: 1, dy: 0 }, // right
-      // { dx: -1, dy: 1 }, // bottom left
-      { dx: 0, dy: 1 }, // bottom
-      // { dx: 1, dy: 1 }, // bottom right
-    ];
+  setState(x: number, y: number, hitType: HitType): void {
+    switch (hitType) {
+      case HitType.miss:
+        this.board[y][x] = CELLTYPE.HIT;
+        break;
+      case HitType.shot:
+      case HitType.killed:
+        this.board[y][x] = CELLTYPE.SHIP_HIT;
+        break;
+      default:
+    }
+  }
 
-    let targetCell: Point | undefined;
-    if (this.lastShotPoint) {
-      const { x, y } = this.lastShotPoint;
-      const surroundingCells = directions
-        .map(({ dx, dy }) => ({ x: x + dx, y: y + dy }))
-        .filter(
-          (cell) =>
-            cell.x >= 0 &&
-            cell.x < BOARDSIZE &&
-            cell.y >= 0 &&
-            cell.y < BOARDSIZE &&
-            this.board[cell.y][cell.x] !== CELLTYPE.HIT &&
-            this.board[cell.y][cell.x] !== CELLTYPE.SHIP_HIT
-        );
-      if (surroundingCells.length > 0)
-        targetCell = surroundingCells[Math.floor(Math.random() * surroundingCells.length)];
+  findClosestPoint(shotPoint: Point, direction: boolean | null): Point | undefined {
+    const directions: Direction[] = [];
+    // false - horizontal; true - vertical; null - unknown
+    switch (direction) {
+      case false:
+        directions.push({ dx: -1, dy: 0 }, { dx: 1, dy: 0 }); // left, right
+        break;
+      case true:
+        directions.push({ dx: 0, dy: -1 }, { dx: 0, dy: 1 }); // top, bottom
+        break;
+
+      default:
+        directions.push({ dx: -1, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }, { dx: 0, dy: 1 });
     }
 
-    if (!targetCell) {
-      const emptyCells = [];
-      for (let i = 0; i < BOARDSIZE; i++) {
-        for (let j = 0; j < BOARDSIZE; j++) {
-          if (this.board[i][j] !== CELLTYPE.HIT && this.board[i][j] !== CELLTYPE.SHIP_HIT) {
-            emptyCells.push({ x: j, y: i });
-          }
+    let targetCell: Point | undefined;
+
+    const { x, y } = shotPoint;
+    const surroundingCells = directions
+      .map(({ dx, dy }) => ({ x: x + dx, y: y + dy }))
+      .filter(
+        (cell) =>
+          cell.x >= 0 &&
+          cell.x < BOARDSIZE &&
+          cell.y >= 0 &&
+          cell.y < BOARDSIZE &&
+          this.board[cell.y][cell.x] !== CELLTYPE.HIT &&
+          this.board[cell.y][cell.x] !== CELLTYPE.SHIP_HIT
+      );
+    if (surroundingCells.length > 0)
+      targetCell = surroundingCells[Math.floor(Math.random() * surroundingCells.length)];
+
+    return targetCell;
+  }
+
+  private getEmptyCells(): Point[] {
+    const emptyCells: Point[] = [];
+    for (let i = 0; i < BOARDSIZE; i++) {
+      for (let j = 0; j < BOARDSIZE; j++) {
+        if (this.board[i][j] !== CELLTYPE.HIT && this.board[i][j] !== CELLTYPE.SHIP_HIT) {
+          emptyCells.push({ x: j, y: i });
+        }
+      }
+    }
+
+    return emptyCells;
+  }
+
+  randomAttackPoint(): Point {
+    const emptyCells = this.getEmptyCells();
+    if (!emptyCells.length) return { x: 0, y: 0 }; // never
+
+    return getRandomElement(emptyCells);
+  }
+
+  randomAttackPointBot(): Point {
+    const emptyCells = this.getEmptyCells();
+    if (!emptyCells.length) return { x: 0, y: 0 }; // never
+
+    // return getRandomElement(emptyCells);
+
+    const directions = this.getDirectionsAll();
+    const randomPoints: RandomPoint[] = [];
+
+    for (const cell of emptyCells) {
+      let countEmpty = 0;
+      for (const { dx, dy } of directions) {
+        const posX = cell.x + dx;
+        const posY = cell.y + dy;
+
+        if (
+          posX >= 0 &&
+          posX < BOARDSIZE &&
+          posY >= 0 &&
+          posY < BOARDSIZE &&
+          this.board[posY][posX] === CELLTYPE.EMPTY
+        ) {
+          countEmpty++;
         }
       }
 
-      targetCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
-      if (!targetCell) targetCell = { x: 0, y: 0 };
+      if (countEmpty > 0) {
+        if (cell.x === 0 || cell.x === BOARDSIZE - 1) countEmpty++;
+        if (cell.y === 0 || cell.y === BOARDSIZE - 1) countEmpty++;
+      }
+
+      randomPoints.push({ cell, countEmpty });
     }
 
-    return targetCell;
+    const cellCounts = [8, 7, 6, 5, 4, 3, 2, 1];
+    for (const count of cellCounts) {
+      const filteredCells = randomPoints.filter((cell) => cell.countEmpty === count);
+      if (filteredCells.length) {
+        return getRandomElement<RandomPoint>(filteredCells).cell;
+      }
+    }
+
+    return getRandomElement(emptyCells);
   }
 
   randomAttack(): AttackResult {
@@ -168,8 +250,19 @@ export class GameBoard {
 
   attack(x: number, y: number): AttackResult {
     const point = { x, y };
-    if (this.board[y][x] === CELLTYPE.HIT || this.board[y][x] === CELLTYPE.SHIP_HIT) {
-      return { point, status: HitType.repeat };
+
+    if (this.board[y][x] === CELLTYPE.HIT) {
+      return { point, status: HitType.repeat, repeatStatus: HitType.miss };
+    }
+
+    if (this.board[y][x] === CELLTYPE.SHIP_HIT) {
+      const shipCells = this.isShipKilledCells(x, y);
+
+      return {
+        point,
+        status: HitType.repeat,
+        repeatStatus: shipCells.Killed ? HitType.killed : HitType.shot,
+      };
     }
 
     if (this.board[y][x] === CELLTYPE.EMPTY) {

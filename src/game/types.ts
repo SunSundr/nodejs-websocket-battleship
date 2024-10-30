@@ -67,6 +67,7 @@ export interface StartShipsData {
 export interface AttackResult {
   point: Point;
   status: HitType;
+  repeatStatus?: HitType;
   aroundCells?: Point[];
   shipCells?: Point[];
   finish?: boolean;
@@ -76,6 +77,7 @@ export interface AttackFeedback {
   position: Point;
   currentPlayer: number | string;
   status: HitType;
+  repeatStatus?: HitType;
 }
 
 export interface AttackData {

@@ -1,3 +1,4 @@
+import { WebSocket } from 'ws';
 import { User } from '../user/user';
 import { uuid4 } from '../utils/uuid';
 import { removeFromArray } from '../utils/array';
@@ -9,7 +10,8 @@ export class Room {
   readonly id: string;
   private gameIds?: string;
   winner?: User;
-  botRoom = false;
+  botConnection?: WebSocket;
+  timeStamp?: number;
 
   constructor() {
     this.id = uuid4();
@@ -36,6 +38,10 @@ export class Room {
     }
 
     return undefined;
+  }
+
+  isBotRoom(): boolean {
+    return !!this.botConnection;
   }
 
   statistic(): { userWinner?: User; userLoser?: User } {

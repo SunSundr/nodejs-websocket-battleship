@@ -16,5 +16,9 @@ export function printError(...msg: string[]): void {
 export function formatID(id?: string): string {
   if (!id) return '';
 
-  return styleText('gray', `(ID '${styleText('cyan', id)}')`);
+  return styleText('gray', "(ID '") + styleText('cyan', id) + styleText('gray', "')");
+}
+
+export function printLog(...msg: string[]): void {
+  console.log(...msg);
 }
